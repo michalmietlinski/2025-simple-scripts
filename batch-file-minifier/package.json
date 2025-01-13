@@ -1,0 +1,23 @@
+{
+  "name": "batch-file-minification",
+  "version": "1.0.0",
+  "description": "Image processing utility with cleanup functionality",
+  "main": "src/index.js",
+  "scripts": {
+    "process": "node src/index.js",
+    "clean": "node src/scripts/remove-suffixed.js",
+    "clean-backup": "node src/scripts/remove-backup.js",
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "image",
+    "processing",
+    "sharp",
+    "resize"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "sharp": "^0.33.2"
+  }
+}

@@ -2,10 +2,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D%2014.0.0-brightgreen.svg)](https://nodejs.org/)
 
-A powerful command-line utility for batch minifying JavaScript, CSS, and HTML files with flexible output options, backup functionality, and cleanup tools.
 
 ## ✨ Features
-- 🔄 Batch minify multiple file types
+- 🔄 Batch change resolution multiple file types
 - 📁 Multiple output options:
   - Create new output directory
   - Create output directory within each input directory
@@ -14,7 +13,7 @@ A powerful command-line utility for batch minifying JavaScript, CSS, and HTML fi
 - 🌲 Recursive directory processing
 - 💾 Automatic backup creation
 - 🧹 Cleanup tools for processed files and backups
-- 🎯 Support for js, css, and html files
+
 
 ## 🚀 Installation
 ```
@@ -39,7 +38,7 @@ npm run process
 
 Follow the interactive prompts to:
 1. Select input directory
-2. Choose file types to minify
+2. Choose max resolution
 3. Choose output mode
 4. Add optional suffix
 5. Create backups (if overwriting)
@@ -47,7 +46,6 @@ Follow the interactive prompts to:
 Example:
 ```
 Enter directory path (press Enter for current): ./src
-Select file types to minify (js,css,html): js,css
 Output options:
 1. Create new output directory
 2. Create output directory within each input directory
@@ -73,38 +71,11 @@ Options:
 npm run clean-backup
 ```
 
-## 📁 Directory Structure
-```
-your-project/
-├── src/                    # Your source files
-│   ├── scripts/
-│   │   └── app.js
-│   └── styles/
-│       └── main.css
-├── output/                 # Processed files (option 1)
-│   ├── scripts/
-│   │   └── app.min.js
-│   └── styles/
-│       └── main.min.css
-├── src/output/            # Processed files (option 2)
-│   ├── app.min.js
-│   └── main.min.css
-└── backup/                # Original files (when overwriting)
-    ├── scripts/
-    │   └── app.js
-    └── styles/
-        └── main.css
-```
-
-## ⚙️ Supported Formats
-- JavaScript (.js)
-- CSS (.css)
-- HTML (.html, .htm)
 
 ## 🔧 Configuration
 Default settings in src/utils/constants.js:
 ```
-const SUPPORTED_FORMATS = ['.js', '.css', '.html', '.htm'];
+const SUPPORTED_FORMATS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
 const OUTPUT_DIR = 'output';    // Default output directory name
 const BACKUP_DIR = 'backup';    // Default backup directory name
 ```
@@ -115,26 +86,8 @@ The following directories are automatically skipped:
 - output directories
 - backup directories
 
-## 🛟 Error Handling
-- Validates input directory existence
-- Skips files that are already minified
-- Creates directories as needed
-- Provides detailed error messages
-- Safe backup creation before overwriting
-- Confirmation prompts for destructive operations
-
-## 🤝 Contributing
-1. Fork the repository
-2. Create your feature branch (git checkout -b feature/amazing-feature)
-3. Commit your changes (git commit -m 'Add amazing feature')
-4. Push to the branch (git push origin feature/amazing-feature)
-5. Open a Pull Request
-
 ## 📝 License
 This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🙏 Acknowledgments
-- Terser for JavaScript minification
-- Clean-css for CSS minification
-- Html-minifier for HTML minification
 - Node.js for the runtime environment

@@ -42,6 +42,13 @@ const questions = [
         validate: (value) => value.length > 0 ? true : 'Please enter a color'
     },
     {
+        type: 'input',
+        name: 'filename',
+        message: 'Enter base filename:',
+        default: 'test-image',
+        validate: (value) => value.length > 0 ? true : 'Please enter a filename'
+    },
+    {
         type: 'number',
         name: 'count',
         message: 'How many images do you want to generate?',
@@ -55,7 +62,7 @@ if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir);
 }
 
-async function generateImage(width, height, color, index) {
+async function generateImage(width, height, color, filename, index) {
     await sharp({
         create: {
             width: width,
@@ -65,7 +72,7 @@ async function generateImage(width, height, color, index) {
         }
     })
     .png()
-    .toFile(path.join(outputDir, `test-image-${index + 1}.png`));
+    .toFile(path.join(outputDir, `${filename}-${index + 1}.png`));
 }
 
 async function main() {
@@ -79,7 +86,7 @@ async function main() {
         console.log(`\nGenerating ${answers.count} images (${dimensions.width}x${dimensions.height}) in color: ${answers.color}`);
         
         for (let i = 0; i < answers.count; i++) {
-            await generateImage(dimensions.width, dimensions.height, answers.color, i);
+            await generateImage(dimensions.width, dimensions.height, answers.color, answers.filename, i);
             console.log(`Generated image ${i + 1} of ${answers.count}`);
         }
         

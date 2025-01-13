@@ -29,4 +29,7 @@ Follow the interactive prompts to:
 3. Enter base filename (defaults to 'test-image')
 4. Specify the number of images to generate
 
+## Clean output directory:
+
+	npm run clean
 

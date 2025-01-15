@@ -1,0 +1,209 @@
+let words = [];
+let currentIndex = 0;
+let isPlaying = false;
+let intervalId = null;
+
+const display = document.getElementById('display');
+const startButton = document.getElementById('start');
+const pauseButton = document.getElementById('pause');
+const resetButton = document.getElementById('reset');
+const inputArea = document.getElementById('input-area');
+const fileInput = document.getElementById('file-input');
+const wordsPerDisplay = document.getElementById('words-per-display');
+const speedInput = document.getElementById('speed');
+const clearButton = document.getElementById('clear-text');
+const linesToDisplay = document.getElementById('lines-to-display');
+const urlInput = document.getElementById('url-input');
+const fetchUrlButton = document.getElementById('fetch-url');
+
+function splitIntoWords(text) {
+    return text.trim().split(/\s+/);
+}
+
+function calculateTextLines(text, containerWidth) {
+    const temp = document.createElement('div');
+    temp.style.position = 'absolute';
+    temp.style.width = `${containerWidth}px`;
+    temp.style.fontSize = window.getComputedStyle(display).fontSize;
+    temp.style.lineHeight = window.getComputedStyle(display).lineHeight;
+    temp.style.visibility = 'hidden';
+    temp.textContent = text;
+    document.body.appendChild(temp);
+    
+    const height = temp.offsetHeight;
+    const lineHeight = parseInt(window.getComputedStyle(temp).lineHeight);
+    document.body.removeChild(temp);
+    
+    return Math.ceil(height / lineHeight);
+}
+
+function displayWords() {
+    const numWords = parseInt(wordsPerDisplay.value);
+    const maxLines = parseInt(linesToDisplay.value);
+    const displayWidth = display.offsetWidth - 40;
+    
+    let tempWords = words.slice(currentIndex, currentIndex + numWords);
+    let tempText = tempWords.join(' ');
+    
+    // Adjust timing if we had to reduce words to fit lines
+    if (tempWords.length < numWords) {
+        const speed = parseInt(speedInput.value);
+        const newInterval = (60 / speed) * 1000 * tempWords.length;
+        
+        // Reset interval with new timing if it changed
+        if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = setInterval(displayWords, newInterval);
+        }
+    }
+    
+    while (calculateTextLines(tempText, displayWidth) > maxLines && tempWords.length > 1) {
+        tempWords.pop();
+        tempText = tempWords.join(' ');
+    }
+    
+    display.textContent = tempText;
+    currentIndex += tempWords.length;
+
+    if (currentIndex >= words.length) {
+        stopReading();
+    }
+}
+
+function startReading() {
+    if (!words.length) return;
+    
+    isPlaying = true;
+    const speed = parseInt(speedInput.value);
+    const wordsPerBatch = parseInt(wordsPerDisplay.value);
+    
+    // Calculate interval based on words per batch
+    // If we're showing 3 words at once, we need to slow down the interval by 3x
+    // to maintain the correct words per minute
+    const interval = (60 / speed) * 1000 * wordsPerBatch;
+    
+    intervalId = setInterval(displayWords, interval);
+    startButton.disabled = true;
+    pauseButton.disabled = false;
+}
+
+function stopReading() {
+    isPlaying = false;
+    clearInterval(intervalId);
+    startButton.disabled = false;
+    pauseButton.disabled = true;
+}
+
+function resetReading() {
+    stopReading();
+    currentIndex = 0;
+    display.textContent = 'Words will appear here';
+}
+
+function clearText() {
+    inputArea.value = '';
+    words = [];
+    resetReading();
+}
+
+async function fetchWebPage(url) {
+    fetchUrlButton.disabled = true;
+    try {
+        const response = await fetch(url);
+        const html = await response.text();
+        
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        const elementsToRemove = doc.querySelectorAll('script, style, header, footer, nav, aside, iframe, img');
+        elementsToRemove.forEach(element => element.remove());
+        
+        const content = doc.body.textContent
+            .replace(/\s+/g, ' ')
+            .trim();
+        
+        inputArea.value = content;
+        words = splitIntoWords(content);
+        resetReading();
+    } catch (error) {
+        alert('Error fetching webpage: ' + error.message);
+    } finally {
+        fetchUrlButton.disabled = false;
+    }
+}
+
+function updateReadingInterval() {
+    if (!isPlaying) return;
+    
+    const speed = parseInt(speedInput.value);
+    const wordsPerBatch = parseInt(wordsPerDisplay.value);
+    const interval = (60 / speed) * 1000 * wordsPerBatch;
+    
+    clearInterval(intervalId);
+    intervalId = setInterval(displayWords, interval);
+}
+
+// Event Listeners
+startButton.addEventListener('click', startReading);
+pauseButton.addEventListener('click', stopReading);
+resetButton.addEventListener('click', resetReading);
+clearButton.addEventListener('click', clearText);
+
+inputArea.addEventListener('input', (e) => {
+    words = splitIntoWords(e.target.value);
+    resetReading();
+});
+
+fileInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.type === 'application/pdf') {
+        // For PDF support, we'll need to update main.js to handle this
+        alert('PDF support coming soon!');
+        return;
+    }
+
+    const text = await file.text();
+    inputArea.value = text;
+    words = splitIntoWords(text);
+    resetReading();
+});
+
+linesToDisplay.addEventListener('input', (e) => {
+    if (e.target.value < 1) e.target.value = 1;
+    if (e.target.value > 3) e.target.value = 3;
+    // Force refresh of current display
+    if (isPlaying) {
+        displayWords();
+    }
+});
+
+wordsPerDisplay.addEventListener('input', (e) => {
+    if (e.target.value < 1) e.target.value = 1;
+    updateReadingInterval();
+});
+
+fetchUrlButton.addEventListener('click', () => {
+    const url = urlInput.value.trim();
+    if (!url) {
+        alert('Please enter a URL');
+        return;
+    }
+    
+    try {
+        new URL(url); // Validate URL format
+        fetchWebPage(url);
+    } catch {
+        alert('Please enter a valid URL');
+    }
+});
+
+speedInput.addEventListener('input', (e) => {
+    if (e.target.value < 60) e.target.value = 60;
+    if (e.target.value > 1000) e.target.value = 1000;
+    updateReadingInterval();
+});
+
+// Initialize
+pauseButton.disabled = true; 

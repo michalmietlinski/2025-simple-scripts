@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Speed Reader</title>
+    <script src="./node_modules/pdfjs-dist/build/pdf.mjs" type="module"></script>
+    <script src="./renderer.js" type="module"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        #controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #display {
+            font-size: 24px;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid #ccc;
+            margin: 20px 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        #input-area {
+            width: 100%;
+            min-height: 150px;
+            margin: 10px 0;
+        }
+        .file-input {
+            margin: 10px 0;
+        }
+        .textarea-container {
+            position: relative;
+            width: 100%;
+        }
+        #clear-text {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            padding: 5px 10px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #clear-text:hover {
+            background: #d32f2f;
+        }
+        .url-input {
+            margin: 10px 0;
+            display: flex;
+            gap: 10px;
+        }
+        #url-input {
+            flex: 1;
+            padding: 5px;
+        }
+        #fetch-url {
+            padding: 5px 15px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #fetch-url:hover {
+            background: #45a049;
+        }
+        #fetch-url:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>Speed Reader</h1>
+    
+    <div class="file-input">
+        <input type="file" id="file-input" accept=".txt,.pdf">
+        <label>Select a file or paste text below</label>
+    </div>
+
+    <div class="url-input">
+        <input type="url" id="url-input" placeholder="Enter webpage URL...">
+        <button id="fetch-url">Read from URL</button>
+    </div>
+
+    <div class="textarea-container">
+        <textarea id="input-area" placeholder="Paste your text here..."></textarea>
+        <button id="clear-text">Clear Text</button>
+    </div>
+    
+    <div id="controls">
+        <button id="start">Start</button>
+        <button id="pause">Pause</button>
+        <button id="reset">Reset</button>
+        <label>Words per display:</label>
+        <input type="number" id="words-per-display" value="1" min="1">
+        <label>Lines to display:</label>
+        <input type="number" id="lines-to-display" value="1" min="1" max="3">
+        <label>Speed (wpm):</label>
+        <input type="number" id="speed" value="200" min="60" max="1000">
+    </div>
+
+    <div id="display">Words will appear here</div>
+</body>
+</html> 

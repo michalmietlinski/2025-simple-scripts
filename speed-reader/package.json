@@ -11,5 +11,8 @@
     "license": "ISC",
     "devDependencies": {
         "electron": "^28.1.0"
+    },
+    "dependencies": {
+        "pdfjs-dist": "^4.10.38"
     }
-} 
+}

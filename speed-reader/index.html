@@ -2,6 +2,8 @@
 <html>
 <head>
     <title>Speed Reader</title>
+    <script src="./node_modules/pdfjs-dist/build/pdf.mjs" type="module"></script>
+    <script src="./renderer.js" type="module"></script>
     <style>
         body {
             display: flex;
@@ -79,6 +81,27 @@
             background: #cccccc;
             cursor: not-allowed;
         }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -112,7 +135,5 @@
     </div>
 
     <div id="display">Words will appear here</div>
-
-    <script src="renderer.js"></script>
 </body>
 </html> 

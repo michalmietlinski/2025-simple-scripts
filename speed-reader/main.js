@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, protocol } = require('electron')
 const path = require('path')
 
 function createWindow() {
@@ -8,8 +8,16 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
-            webSecurity: false // Note: In production, you should handle this more securely
+            webSecurity: false,
+            additionalArguments: ['--no-sandbox'],
+            webviewTag: true
         }
+    })
+
+    // Enable loading of ES modules from node_modules
+    protocol.registerFileProtocol('node-modules', (request, callback) => {
+        const url = request.url.substr('node-modules://'.length)
+        callback({ path: path.normalize(`${__dirname}/node_modules/${url}`) })
     })
 
     win.loadFile('index.html')
@@ -29,4 +37,4 @@ app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit()
     }
-}) 
+})

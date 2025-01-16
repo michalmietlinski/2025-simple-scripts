@@ -1,7 +1,13 @@
+import * as pdfjsLib from './node_modules/pdfjs-dist/build/pdf.mjs';
+
+const { ipcRenderer } = window.electron || {};
+
 let words = [];
 let currentIndex = 0;
 let isPlaying = false;
 let intervalId = null;
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = './node_modules/pdfjs-dist/build/pdf.worker.mjs';
 
 const display = document.getElementById('display');
 const startButton = document.getElementById('start');
@@ -65,6 +71,7 @@ function displayWords() {
     display.textContent = tempText;
     currentIndex += tempWords.length;
 
+    // Stop at the end
     if (currentIndex >= words.length) {
         stopReading();
     }
@@ -73,13 +80,14 @@ function displayWords() {
 function startReading() {
     if (!words.length) return;
     
+    // If we're at the end, start from beginning
+    if (currentIndex >= words.length) {
+        currentIndex = 0;
+    }
+    
     isPlaying = true;
     const speed = parseInt(speedInput.value);
     const wordsPerBatch = parseInt(wordsPerDisplay.value);
-    
-    // Calculate interval based on words per batch
-    // If we're showing 3 words at once, we need to slow down the interval by 3x
-    // to maintain the correct words per minute
     const interval = (60 / speed) * 1000 * wordsPerBatch;
     
     intervalId = setInterval(displayWords, interval);
@@ -158,16 +166,26 @@ fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.type === 'application/pdf') {
-        // For PDF support, we'll need to update main.js to handle this
-        alert('PDF support coming soon!');
-        return;
+    try {
+        let text;
+        if (file.type === 'application/pdf') {
+            display.textContent = 'Loading PDF...';
+            
+            if (!pdfjsLib) {
+                throw new Error('PDF.js library not loaded properly');
+            }
+            
+            text = await readPdfFile(file);
+        } else {
+            text = await file.text();
+        }
+        
+        inputArea.value = text;
+        words = splitIntoWords(text);
+        resetReading();
+    } catch (error) {
+        alert('Error reading file: ' + error.message);
     }
-
-    const text = await file.text();
-    inputArea.value = text;
-    words = splitIntoWords(text);
-    resetReading();
 });
 
 linesToDisplay.addEventListener('input', (e) => {
@@ -207,3 +225,43 @@ speedInput.addEventListener('input', (e) => {
 
 // Initialize
 pauseButton.disabled = true; 
+
+async function readPdfFile(file) {
+    try {
+        const fileUrl = URL.createObjectURL(file);
+        const loadingTask = pdfjsLib.getDocument(fileUrl);
+        const pdf = await loadingTask.promise;
+        
+        let fullText = '';
+        
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const textItems = textContent.items;
+            const lines = {};
+            
+            textItems.forEach(item => {
+                const y = Math.round(item.transform[5]);
+                if (!lines[y]) {
+                    lines[y] = [];
+                }
+                lines[y].push(item.str);
+            });
+            
+            const sortedLines = Object.keys(lines)
+                .sort((a, b) => b - a)
+                .map(y => lines[y].join(' '));
+            
+            fullText += sortedLines.join('\n') + '\n\n';
+        }
+        
+        URL.revokeObjectURL(fileUrl);
+        
+        return fullText
+            .replace(/\n\s*\n/g, '\n\n')
+            .replace(/\s+/g, ' ')
+            .trim();
+    } catch (error) {
+        throw new Error('Failed to read PDF: ' + error.message);
+    }
+}

@@ -10,18 +10,38 @@
             flex-direction: column;
             padding: 20px;
             font-family: Arial, sans-serif;
-            max-width: 800px;
             margin: 0 auto;
+            min-height: 100vh;
+            box-sizing: border-box;
         }
+
+        /* Container for main content */
+        .container {
+            width: 100%;
+            margin: 0 auto;
+            padding: 0 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: clamp(24px, 4vw, 48px);
+        }
+
         #controls {
             margin: 20px 0;
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             align-items: center;
+            justify-content: center;
         }
+
         #display {
-            font-size: 24px;
-            min-height: 100px;
+            font-size: clamp(18px, 5vw, 48px);
+            min-height: 120px;
+            height: 30vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -30,19 +50,58 @@
             margin: 20px 0;
             padding: 20px;
             line-height: 1.5;
+            text-align: center;
+            box-sizing: border-box;
         }
+
         #input-area {
             width: 100%;
             min-height: 150px;
+            height: 30vh;
             margin: 10px 0;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: vertical;
+            font-size: clamp(14px, 2vw, 18px);
         }
+
         .file-input {
             margin: 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
         }
+
+        .file-input input[type="file"] {
+            display: none;
+        }
+
+        .file-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .file-button:hover {
+            background-color: #45a049;
+        }
+
+        #file-name {
+            color: #666;
+            font-size: 14px;
+        }
+
         .textarea-container {
             position: relative;
             width: 100%;
         }
+
         #clear-text {
             position: absolute;
             right: 10px;
@@ -54,18 +113,26 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
         #clear-text:hover {
             background: #d32f2f;
         }
+
         .url-input {
             margin: 10px 0;
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
         }
+
         #url-input {
             flex: 1;
-            padding: 5px;
+            min-width: 200px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
         }
+
         #fetch-url {
             padding: 5px 15px;
             background: #4CAF50;
@@ -74,13 +141,16 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
         #fetch-url:hover {
             background: #45a049;
         }
+
         #fetch-url:disabled {
             background: #cccccc;
             cursor: not-allowed;
         }
+
         button {
             padding: 8px 16px;
             border: none;
@@ -92,48 +162,110 @@
             transition: background-color 0.3s ease;
             margin: 4px;
         }
+
         button:hover {
             background-color: #45a049;
         }
+
         button:active {
             transform: scale(0.98);
         }
+
         button:disabled {
             background-color: #cccccc;
             cursor: not-allowed;
         }
+
+        /* Control group for better organization */
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        /* Media queries for responsive design */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            #controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .control-group {
+                justify-content: space-between;
+            }
+
+            .url-input {
+                flex-direction: column;
+            }
+
+            #url-input {
+                width: 100%;
+            }
+
+            .file-input {
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 24px;
+            }
+
+            #display {
+                font-size: 18px;
+                min-height: 100px;
+                padding: 15px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Speed Reader</h1>
-    
-    <div class="file-input">
-        <input type="file" id="file-input" accept=".txt,.pdf">
-        <label>Select a file or paste text below</label>
-    </div>
+    <div class="container">
+        <h1>Speed Reader</h1>
+        
+        <div class="file-input">
+            <label for="file-input" class="file-button">Choose File</label>
+            <span id="file-name">No file selected</span>
+            <input type="file" id="file-input" accept=".txt,.pdf">
+        </div>
 
-    <div class="url-input">
-        <input type="url" id="url-input" placeholder="Enter webpage URL...">
-        <button id="fetch-url">Read from URL</button>
-    </div>
+        <div class="url-input">
+            <input type="url" id="url-input" placeholder="Enter webpage URL...">
+            <button id="fetch-url">Read from URL</button>
+        </div>
 
-    <div class="textarea-container">
-        <textarea id="input-area" placeholder="Paste your text here..."></textarea>
-        <button id="clear-text">Clear Text</button>
-    </div>
-    
-    <div id="controls">
-        <button id="start">Start</button>
-        <button id="pause">Pause</button>
-        <button id="reset">Reset</button>
-        <label>Words per display:</label>
-        <input type="number" id="words-per-display" value="1" min="1">
-        <label>Lines to display:</label>
-        <input type="number" id="lines-to-display" value="1" min="1" max="3">
-        <label>Speed (wpm):</label>
-        <input type="number" id="speed" value="200" min="60" max="1000">
-    </div>
+        <div class="textarea-container">
+            <textarea id="input-area" placeholder="Paste your text here..."></textarea>
+            <button id="clear-text">Clear Text</button>
+        </div>
+        
+        <div id="controls">
+            <div class="control-group">
+                <button id="start">Start</button>
+                <button id="pause">Pause</button>
+                <button id="reset">Reset</button>
+            </div>
+            <div class="control-group">
+                <label>Words:</label>
+                <input type="number" id="words-per-display" value="1" min="1">
+            </div>
+            <div class="control-group">
+                <label>Lines:</label>
+                <input type="number" id="lines-to-display" value="1" min="1" max="3">
+            </div>
+            <div class="control-group">
+                <label>WPM:</label>
+                <input type="number" id="speed" value="200" min="60" max="1000">
+            </div>
+        </div>
 
-    <div id="display">Words will appear here</div>
+        <div id="display">Words will appear here</div>
+    </div>
 </body>
 </html> 

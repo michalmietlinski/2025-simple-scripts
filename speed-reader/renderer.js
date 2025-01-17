@@ -21,6 +21,7 @@ const clearButton = document.getElementById('clear-text');
 const linesToDisplay = document.getElementById('lines-to-display');
 const urlInput = document.getElementById('url-input');
 const fetchUrlButton = document.getElementById('fetch-url');
+const fileNameDisplay = document.getElementById('file-name');
 
 function splitIntoWords(text) {
     return text.trim().split(/\s+/);
@@ -164,7 +165,12 @@ inputArea.addEventListener('input', (e) => {
 
 fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file) {
+        fileNameDisplay.textContent = 'No file selected';
+        return;
+    }
+
+    fileNameDisplay.textContent = file.name;
 
     try {
         let text;

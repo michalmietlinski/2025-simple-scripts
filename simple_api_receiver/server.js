@@ -8,6 +8,11 @@ const PORT = 3005;
 const SAVE_LOGS = process.env.SAVE_LOGS !== 'false';
 const NOTIFY = process.env.NOTIFY === 'true';
 
+// Function to sanitize path for filesystem
+function sanitizePath(pathStr) {
+    return pathStr.replace(/[^a-zA-Z0-9-_]/g, '_').replace(/_{2,}/g, '_');
+}
+
 // Function to move existing logs to archives
 async function archiveExistingLogs() {
     if (!SAVE_LOGS) return;
@@ -27,16 +32,22 @@ async function archiveExistingLogs() {
             const dateStr = dateMatch[0];
             const [year, month, day] = dateStr.split('-');
             
+            // Extract endpoint from filename
+            const endpointMatch = file.match(/_endpoint_(.+)\.json$/);
+            const endpoint = endpointMatch ? endpointMatch[1] : 'root';
+            
             const yearDir = path.join(archiveDir, year);
             const monthDir = path.join(yearDir, month);
             const dayDir = path.join(monthDir, day);
+            const endpointDir = path.join(dayDir, endpoint);
             
             await fs.mkdir(yearDir, { recursive: true });
             await fs.mkdir(monthDir, { recursive: true });
             await fs.mkdir(dayDir, { recursive: true });
+            await fs.mkdir(endpointDir, { recursive: true });
 
             const oldPath = path.join(logsDir, file);
-            const newPath = path.join(dayDir, file);
+            const newPath = path.join(endpointDir, file);
             await fs.rename(oldPath, newPath);
         }
 
@@ -53,7 +64,7 @@ function sendNotification(requestData) {
     notifier.notify({
         title: `New ${requestData.method} Request`,
         message: `Endpoint: ${requestData.path}\nTimestamp: ${requestData.timestamp}`,
-        icon: path.join(__dirname, 'assets', 'icon.png'), // Optional: you can add an icon
+        icon: path.join(__dirname, 'assets', 'icon.png'),
         timeout: 5
     });
 }
@@ -79,7 +90,8 @@ app.all('*', async (req, res) => {
 
         if (SAVE_LOGS) {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `${req.method}_${timestamp}_request.json`;
+            const sanitizedEndpoint = sanitizePath(req.path);
+            const filename = `${req.method}_${timestamp}_endpoint_${sanitizedEndpoint || 'root'}.json`;
             const logsDir = path.join(__dirname, 'logs');
             await fs.mkdir(logsDir, { recursive: true });
             await fs.writeFile(

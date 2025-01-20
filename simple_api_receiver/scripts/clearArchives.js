@@ -25,6 +25,7 @@ async function clearArchives() {
     const archivesPath = path.join(__dirname, '..', 'archives');
     try {
         await clearDirectory(archivesPath);
+        await fs.mkdir(archivesPath, { recursive: true });
         console.log('Archives cleared successfully');
     } catch (error) {
         console.error('Error clearing archives:', error);

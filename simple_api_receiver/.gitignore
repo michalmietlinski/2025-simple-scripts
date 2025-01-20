@@ -14,4 +14,7 @@ archives/
 
 # OS files
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Assets
+assets/icon.*

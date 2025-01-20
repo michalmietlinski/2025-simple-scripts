@@ -1,12 +1,16 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
+const notifier = require('node-notifier');
 
 const app = express();
 const PORT = 3005;
+const SAVE_LOGS = process.env.SAVE_LOGS !== 'false';
+const NOTIFY = process.env.NOTIFY === 'true';
 
 // Function to move existing logs to archives
 async function archiveExistingLogs() {
+    if (!SAVE_LOGS) return;
     try {
         const logsDir = path.join(__dirname, 'logs');
         const archiveDir = path.join(__dirname, 'archives');
@@ -42,6 +46,18 @@ async function archiveExistingLogs() {
     }
 }
 
+// Function to send notification
+function sendNotification(requestData) {
+    if (!NOTIFY) return;
+    
+    notifier.notify({
+        title: `New ${requestData.method} Request`,
+        message: `Endpoint: ${requestData.path}\nTimestamp: ${requestData.timestamp}`,
+        icon: path.join(__dirname, 'assets', 'icon.png'), // Optional: you can add an icon
+        timeout: 5
+    });
+}
+
 archiveExistingLogs();
 
 app.use(express.json());
@@ -58,18 +74,25 @@ app.all('*', async (req, res) => {
             body: req.body
         };
 
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `${req.method}_${timestamp}_request.json`;
-        const logsDir = path.join(__dirname, 'logs');
-        await fs.mkdir(logsDir, { recursive: true });
-        await fs.writeFile(
-            path.join(logsDir, filename),
-            JSON.stringify(requestData, null, 2)
-        );
         console.log('Request received:', requestData);
+        sendNotification(requestData);
+
+        if (SAVE_LOGS) {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `${req.method}_${timestamp}_request.json`;
+            const logsDir = path.join(__dirname, 'logs');
+            await fs.mkdir(logsDir, { recursive: true });
+            await fs.writeFile(
+                path.join(logsDir, filename),
+                JSON.stringify(requestData, null, 2)
+            );
+        }
+
         res.json({ 
-            message: 'Request logged successfully',
-            timestamp: requestData.timestamp
+            message: 'Request processed successfully',
+            timestamp: requestData.timestamp,
+            logging: SAVE_LOGS ? 'enabled' : 'disabled',
+            notifications: NOTIFY ? 'enabled' : 'disabled'
         });
 
     } catch (error) {
@@ -80,4 +103,6 @@ app.all('*', async (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    console.log(`Logging is ${SAVE_LOGS ? 'enabled' : 'disabled'}`);
+    console.log(`Notifications are ${NOTIFY ? 'enabled' : 'disabled'}`);
 }); 

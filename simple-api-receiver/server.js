@@ -5,28 +5,57 @@ const notifier = require('node-notifier');
 const readline = require('readline');
 
 const app = express();
-const PORT = 3005;
+let PORT = 3005;
 const SAVE_LOGS = process.env.SAVE_LOGS !== 'false';
 const NOTIFY = process.env.NOTIFY === 'true';
 
-// Add configuration for redirect
 let REDIRECT_URL = null;
 
-// Function to get user input
 async function getUserChoice() {
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout
     });
 
+    const getPort = () => new Promise((resolve) => {
+        rl.question('Enter port number (default: 3005): ', (port) => {
+            const portNum = parseInt(port);
+            if (port === '' || (portNum >= 1 && portNum <= 65535)) {
+                resolve(port === '' ? 3005 : portNum);
+            } else {
+                console.log('Invalid port. Please enter a number between 1 and 65535.');
+                resolve(getPort());
+            }
+        });
+    });
+
+    const getRedirectUrl = () => new Promise((resolve) => {
+        rl.question('Enter the target URL (e.g., http://example.com): ', (url) => {
+            try {
+                const targetUrl = new URL(url);
+                // Check if redirect URL would create a loop
+                const targetPort = targetUrl.port || (targetUrl.protocol === 'https:' ? '443' : '80');
+                if (targetUrl.hostname === 'localhost' && parseInt(targetPort) === PORT) {
+                    console.log('Error: Cannot redirect to the same address and port this app is running on.');
+                    resolve(getRedirectUrl());
+                } else {
+                    resolve(url);
+                }
+            } catch (error) {
+                console.log('Invalid URL format. Please enter a valid URL.');
+                resolve(getRedirectUrl());
+            }
+        });
+    });
+
+    PORT = await getPort();
+
     return new Promise((resolve) => {
         rl.question('Do you want to redirect requests to an external URL? (y/n): ', async (answer) => {
             if (answer.toLowerCase() === 'y') {
-                rl.question('Enter the target URL (e.g., http://example.com): ', (url) => {
-                    REDIRECT_URL = url;
-                    rl.close();
-                    resolve();
-                });
+                REDIRECT_URL = await getRedirectUrl();
+                rl.close();
+                resolve();
             } else {
                 rl.close();
                 resolve();
@@ -98,8 +127,17 @@ function sendNotification(requestData) {
 
 archiveExistingLogs();
 
+app.use(express.raw({ 
+    type: '*/*',
+    limit: '50mb'
+}));
+
+app.use((req, res, next) => {
+    req.rawBody = req.body;
+    next();
+});
+
 app.use(express.json());
-app.use(express.raw({ type: '*/*' }));
 
 app.all('*', async (req, res) => {
     try {
@@ -114,24 +152,52 @@ app.all('*', async (req, res) => {
 
         console.log('Request received:', requestData);
         sendNotification(requestData);
-
+        
         if (REDIRECT_URL) {
+            console.log('Redirecting request to:', REDIRECT_URL);
             const targetUrl = new URL(req.path, REDIRECT_URL);
-            // Add query parameters
             Object.entries(req.query).forEach(([key, value]) => {
                 targetUrl.searchParams.append(key, value);
             });
-
+            
+            console.log('Target URL:', targetUrl.toString());
+            
             try {
+                // Clean up headers to avoid conflicts
+                const forwardHeaders = { ...req.headers };
+                delete forwardHeaders.host;
+                delete forwardHeaders.connection;
+                delete forwardHeaders['content-length'];
+
                 const response = await fetch(targetUrl.toString(), {
                     method: req.method,
-                    headers: req.headers,
-                    body: ['GET', 'HEAD'].includes(req.method) ? undefined : req.body
+                    headers: forwardHeaders,
+                    body: req.rawBody || req.body,
                 });
                 
-                console.log(`Forwarded request to ${targetUrl.toString()}`);
+                console.log('Response status:', response.status);
+
+                if (SAVE_LOGS) {
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    const sanitizedEndpoint = sanitizePath(req.path);
+                    const responseData = {
+                        timestamp: new Date().toISOString(),
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: Object.fromEntries(response.headers),
+                        body: await response.clone().text(),
+                        originalUrl: targetUrl.toString()
+                    };
+
+                    const responseFilename = `${req.method}_${timestamp}_endpoint_${sanitizedEndpoint || 'root'}_response.json`;
+                    const logsDir = path.join(__dirname, 'logs');
+                    await fs.writeFile(
+                        path.join(logsDir, responseFilename),
+                        JSON.stringify(responseData, null, 2)
+                    );
+                }
             } catch (error) {
-                console.error('Error forwarding request:', error);
+                console.error('Error forwarding request:', error.message);
             }
         }
 

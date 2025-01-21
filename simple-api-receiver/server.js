@@ -2,11 +2,38 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const notifier = require('node-notifier');
+const readline = require('readline');
 
 const app = express();
 const PORT = 3005;
 const SAVE_LOGS = process.env.SAVE_LOGS !== 'false';
 const NOTIFY = process.env.NOTIFY === 'true';
+
+// Add configuration for redirect
+let REDIRECT_URL = null;
+
+// Function to get user input
+async function getUserChoice() {
+    const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout
+    });
+
+    return new Promise((resolve) => {
+        rl.question('Do you want to redirect requests to an external URL? (y/n): ', async (answer) => {
+            if (answer.toLowerCase() === 'y') {
+                rl.question('Enter the target URL (e.g., http://example.com): ', (url) => {
+                    REDIRECT_URL = url;
+                    rl.close();
+                    resolve();
+                });
+            } else {
+                rl.close();
+                resolve();
+            }
+        });
+    });
+}
 
 // Function to sanitize path for filesystem
 function sanitizePath(pathStr) {
@@ -88,6 +115,26 @@ app.all('*', async (req, res) => {
         console.log('Request received:', requestData);
         sendNotification(requestData);
 
+        if (REDIRECT_URL) {
+            const targetUrl = new URL(req.path, REDIRECT_URL);
+            // Add query parameters
+            Object.entries(req.query).forEach(([key, value]) => {
+                targetUrl.searchParams.append(key, value);
+            });
+
+            try {
+                const response = await fetch(targetUrl.toString(), {
+                    method: req.method,
+                    headers: req.headers,
+                    body: ['GET', 'HEAD'].includes(req.method) ? undefined : req.body
+                });
+                
+                console.log(`Forwarded request to ${targetUrl.toString()}`);
+            } catch (error) {
+                console.error('Error forwarding request:', error);
+            }
+        }
+
         if (SAVE_LOGS) {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const sanitizedEndpoint = sanitizePath(req.path);
@@ -104,7 +151,8 @@ app.all('*', async (req, res) => {
             message: 'Request processed successfully',
             timestamp: requestData.timestamp,
             logging: SAVE_LOGS ? 'enabled' : 'disabled',
-            notifications: NOTIFY ? 'enabled' : 'disabled'
+            notifications: NOTIFY ? 'enabled' : 'disabled',
+            forwarding: REDIRECT_URL ? `enabled to ${REDIRECT_URL}` : 'disabled'
         });
 
     } catch (error) {
@@ -113,8 +161,19 @@ app.all('*', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-    console.log(`Logging is ${SAVE_LOGS ? 'enabled' : 'disabled'}`);
-    console.log(`Notifications are ${NOTIFY ? 'enabled' : 'disabled'}`);
-}); 
+// Modify the startup sequence
+async function startServer() {
+    await getUserChoice();
+    await archiveExistingLogs();
+    
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+        console.log(`Logging is ${SAVE_LOGS ? 'enabled' : 'disabled'}`);
+        console.log(`Notifications are ${NOTIFY ? 'enabled' : 'disabled'}`);
+        if (REDIRECT_URL) {
+            console.log(`Request forwarding is enabled to: ${REDIRECT_URL}`);
+        }
+    });
+}
+
+startServer(); 

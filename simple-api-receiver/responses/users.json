@@ -1,0 +1,7 @@
+{
+    "message": "Users endpoint accessed",
+    "timestamp": "{timestamp}",
+    "data": {
+        "users": ["user1", "user2"]
+    }
+} 

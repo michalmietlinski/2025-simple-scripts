@@ -1,0 +1,5 @@
+{
+    "message": "Request processed successfully",
+    "timestamp": "{timestamp}",
+    "logging": "{logging}"
+} 

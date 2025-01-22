@@ -3,6 +3,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const notifier = require('node-notifier');
 const readline = require('readline');
+const fsSync = require('fs');
 
 const app = express();
 let PORT = 3005;
@@ -10,6 +11,25 @@ const SAVE_LOGS = process.env.SAVE_LOGS !== 'false';
 const NOTIFY = process.env.NOTIFY === 'true';
 
 let REDIRECT_URL = null;
+
+const RESPONSES_DIR = path.join(__dirname, 'responses');
+
+// Create responses directory if it doesn't exist
+if (!fsSync.existsSync(RESPONSES_DIR)) {
+    fsSync.mkdirSync(RESPONSES_DIR);
+    // Create default response file if it doesn't exist
+    const defaultResponse = {
+        message: "Request processed successfully",
+        timestamp: "{timestamp}",
+        logging: "{logging}",
+        notifications: "{notifications}",
+        forwarding: "{forwarding}"
+    };
+    fsSync.writeFileSync(
+        path.join(RESPONSES_DIR, 'default.json'), 
+        JSON.stringify(defaultResponse, null, 2)
+    );
+}
 
 async function getUserChoice() {
     const rl = readline.createInterface({
@@ -125,6 +145,44 @@ function sendNotification(requestData) {
     });
 }
 
+async function getResponseForEndpoint(endpoint, requestData) {
+    const responseFile = path.join(RESPONSES_DIR, `${endpoint}.json`);
+    const defaultFile = path.join(RESPONSES_DIR, 'default.json');
+    
+    try {
+        // Try to read endpoint-specific response
+        const responseContent = await fs.readFile(
+            fsSync.existsSync(responseFile) ? responseFile : defaultFile,
+            'utf8'
+        );
+        
+        let response = JSON.parse(responseContent);
+        
+        // Replace template variables
+        const templateVars = {
+            timestamp: new Date().toISOString(),
+            logging: SAVE_LOGS ? 'enabled' : 'disabled',
+            notifications: NOTIFY ? 'enabled' : 'disabled',
+            forwarding: REDIRECT_URL ? `enabled to ${REDIRECT_URL}` : 'disabled'
+        };
+
+        response = JSON.parse(
+            JSON.stringify(response).replace(
+                /\{([^}]+)\}/g,
+                (match, key) => templateVars[key] || match
+            )
+        );
+
+        return response;
+    } catch (error) {
+        console.error('Error reading response file:', error);
+        return {
+            error: 'Error processing response template',
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
 archiveExistingLogs();
 
 app.use(express.raw({ 
@@ -213,13 +271,10 @@ app.all('*', async (req, res) => {
             );
         }
 
-        res.json({ 
-            message: 'Request processed successfully',
-            timestamp: requestData.timestamp,
-            logging: SAVE_LOGS ? 'enabled' : 'disabled',
-            notifications: NOTIFY ? 'enabled' : 'disabled',
-            forwarding: REDIRECT_URL ? `enabled to ${REDIRECT_URL}` : 'disabled'
-        });
+        const endpoint = req.path.substring(1) || 'default';
+        const responseData = await getResponseForEndpoint(endpoint, requestData);
+        
+        res.json(responseData);
 
     } catch (error) {
         console.error('Error processing request:', error);

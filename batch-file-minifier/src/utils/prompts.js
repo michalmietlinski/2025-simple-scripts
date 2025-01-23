@@ -1,54 +1,68 @@
 const readline = require('readline');
+const inquirer = require('inquirer');
 
 const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
 });
 
-const question = (query) => new Promise((resolve) => rl.question(query, resolve));
+function question(query) {
+    return new Promise(resolve => rl.question(query, resolve));
+}
 
 async function promptForOutputMode() {
-    console.log('\nOutput options:');
-    console.log('1. Create new output directory');
-    console.log('2. Create output directory within each input directory');
-    console.log('3. Overwrite original files');
-    
-    while (true) {
-        const choice = await question('Choose output mode (1-3): ');
-        if (['1', '2', '3'].includes(choice)) {
-            if (choice === '3') {
-                console.log('\n⚠ WARNING: This will overwrite your original images!');
-                const confirm = await question('Create backup before overwriting? (Y/n): ');
-                if (confirm.toLowerCase() !== 'n') {
-                    return { mode: parseInt(choice), backup: true };
-                }
-                const finalConfirm = await question('Are you sure you want to proceed without backup? (type YES to confirm): ');
-                if (finalConfirm !== 'YES') {
-                    console.log('Operation cancelled. Please choose another option.');
-                    continue;
-                }
-            }
-            return { mode: parseInt(choice), backup: false };
+    const { mode } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'mode',
+            message: 'Select output mode:',
+            choices: [
+                { name: 'Create new output directory', value: 1 },
+                { name: 'Create output directory within each input directory', value: 2 },
+                { name: 'Overwrite original files', value: 3 }
+            ]
         }
-        console.log('Please enter 1, 2, or 3');
+    ]);
+
+    let backup = false;
+    if (mode === 3) {
+        const { createBackup } = await inquirer.prompt([
+            {
+                type: 'confirm',
+                name: 'createBackup',
+                message: 'Create backups of original files?',
+                default: true
+            }
+        ]);
+        backup = createBackup;
     }
+
+    return { mode, backup };
 }
 
 async function promptForSuffix() {
-    const useSuffix = (await question('Add suffix to processed images? (y/N): ')).toLowerCase() === 'y';
-    
+    const { useSuffix } = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'useSuffix',
+            message: 'Add size suffix to output files?',
+            default: true
+        }
+    ]);
+
+    let customSuffix = '';
     if (useSuffix) {
-        const customSuffix = await question('Enter suffix (press Enter for dimension): ');
-        return {
-            useSuffix: true,
-            customSuffix: customSuffix.trim()
-        };
+        const { suffix } = await inquirer.prompt([
+            {
+                type: 'input',
+                name: 'suffix',
+                message: 'Enter custom suffix (press Enter for default size suffix):',
+            }
+        ]);
+        customSuffix = suffix;
     }
-    
-    return {
-        useSuffix: false,
-        customSuffix: ''
-    };
+
+    return { useSuffix, customSuffix };
 }
 
 module.exports = {

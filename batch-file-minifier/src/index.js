@@ -30,6 +30,7 @@ async function main() {
         ]);
 
         let dimensions = [];
+        let forceOutputSettings = false;
 
         if (choices.mode === 'Use preset') {
             const presets = await getPresets();
@@ -48,6 +49,8 @@ async function main() {
             ]);
 
             dimensions = presets[presetChoice.preset];
+            // Force output settings if preset has multiple dimensions
+            forceOutputSettings = dimensions.length > 1;
         } else {
             const answer = await inquirer.prompt([
                 {
@@ -60,8 +63,18 @@ async function main() {
             dimensions = [parseInt(answer.dimension)];
         }
 
-        const { mode: outputMode, backup: createBackups } = await promptForOutputMode();
-        const { useSuffix, customSuffix } = await promptForSuffix();
+        // If using multi-dimension preset, force output settings
+        const { mode: outputMode, backup: createBackups } = forceOutputSettings 
+            ? { mode: 2, backup: false }
+            : await promptForOutputMode();
+            
+        const { useSuffix, customSuffix } = forceOutputSettings
+            ? { useSuffix: true, customSuffix: '' }
+            : await promptForSuffix();
+
+        if (forceOutputSettings) {
+            console.log('\nNote: Using preset with multiple dimensions - output will be created in subdirectories with size suffixes.');
+        }
 
         console.log('\nSearching for images...');
         const { images, directories } = await findImagesRecursively(directory, isCurrentDir);

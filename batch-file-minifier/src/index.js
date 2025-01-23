@@ -6,6 +6,8 @@ const { processImage } = require('./services/imageProcessor');
 const { createBackup } = require('./services/backupService');
 const { getOutputPath } = require('./utils/fileSystem');
 const { DEFAULT_MAX_SIZE, BACKUP_DIR } = require('./utils/constants');
+const { getPresets } = require('./utils/presets');
+const inquirer = require('inquirer');
 
 async function main() {
     try {
@@ -18,7 +20,46 @@ async function main() {
             throw new Error('Directory does not exist!');
         }
 
-        const maxSize = parseInt(await question(`Enter maximum dimension (default ${DEFAULT_MAX_SIZE}px): `)) || DEFAULT_MAX_SIZE;
+        const choices = await inquirer.prompt([
+            {
+                type: 'list',
+                name: 'mode',
+                message: 'How would you like to specify the dimensions?',
+                choices: ['Enter manually', 'Use preset']
+            }
+        ]);
+
+        let dimensions = [];
+
+        if (choices.mode === 'Use preset') {
+            const presets = await getPresets();
+            if (Object.keys(presets).length === 0) {
+                console.log('No presets available. Please create one first using "npm run preset"');
+                process.exit(1);
+            }
+
+            const presetChoice = await inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'preset',
+                    message: 'Select a preset:',
+                    choices: Object.keys(presets)
+                }
+            ]);
+
+            dimensions = presets[presetChoice.preset];
+        } else {
+            const answer = await inquirer.prompt([
+                {
+                    type: 'input',
+                    name: 'dimension',
+                    message: 'Enter maximum dimension:',
+                    validate: input => !isNaN(input) && parseInt(input) > 0
+                }
+            ]);
+            dimensions = [parseInt(answer.dimension)];
+        }
+
         const { mode: outputMode, backup: createBackups } = await promptForOutputMode();
         const { useSuffix, customSuffix } = await promptForSuffix();
 
@@ -41,16 +82,20 @@ async function main() {
                 }
             }
 
-            const outputPath = await getOutputPath(
-                imagePath,
-                directory,
-                outputMode,
-                maxSize,
-                useSuffix,
-                customSuffix
-            );
-            
-            await processImage(imagePath, outputPath, maxSize);
+            for (const dimension of dimensions) {
+                const outputPath = await getOutputPath(
+                    imagePath,
+                    directory,
+                    outputMode,
+                    dimension,
+                    useSuffix,
+                    customSuffix
+                );
+                
+                console.log(`Processing ${path.basename(imagePath)} to ${dimension}px...`);
+                await processImage(imagePath, outputPath, dimension);
+                console.log(`✓ Created: ${path.basename(outputPath)}`);
+            }
         }
 
         if (createBackups) {

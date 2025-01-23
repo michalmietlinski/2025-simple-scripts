@@ -7,7 +7,8 @@
     "process": "node src/index.js",
     "clean": "node src/scripts/remove-suffixed.js",
     "clean-backup": "node src/scripts/remove-backup.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "preset": "node src/scripts/manage-presets.js"
   },
   "keywords": [
     "image",
@@ -18,6 +19,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "sharp": "^0.33.2"
+    "sharp": "^0.33.2",
+    "inquirer": "^8.2.4"
   }
 }

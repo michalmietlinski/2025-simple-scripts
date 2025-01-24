@@ -56,7 +56,6 @@ async function saveBookmarks() {
             }
         });
 
-        // Convert groupedTabs to bookmarks format
         groupedTabs.forEach(group => {
             if (group.tabs.length > 0) {
                 const groupName = `${group.name} (${group.color || 'no color'})`;
@@ -64,7 +63,6 @@ async function saveBookmarks() {
             }
         });
 
-        // Create content based on selected format
         let content;
         let filename;
         
@@ -72,7 +70,6 @@ async function saveBookmarks() {
             content = JSON.stringify(bookmarks, null, 2);
             filename = 'tabs.json';
         } else {
-            // Text format
             content = Object.entries(bookmarks)
                 .map(([groupName, urls]) => {
                     return `=== ${groupName} ===\n${urls.map(url => `  ${url}`).join('\n')}`;
@@ -81,7 +78,6 @@ async function saveBookmarks() {
             filename = 'tabs.txt';
         }
 
-        // Create and trigger download
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -108,21 +104,17 @@ async function handleFileImport(event) {
     if (!file) return;
 
     try {
-        // Get existing groups and tabs first
         const existingGroups = await chrome.tabGroups.query({ windowId: chrome.windows.WINDOW_ID_CURRENT });
         const existingTabs = await chrome.tabs.query({ currentWindow: true });
 
-        // Create mappings for existing items
         const existingGroupsByName = new Map();
         const existingUrlsByGroup = new Map();
 
-        // Map existing groups
         existingGroups.forEach(group => {
             const groupName = `${group.title || 'Unnamed Group'} (${group.color})`;
             existingGroupsByName.set(groupName, group);
         });
 
-        // Map existing tabs to their groups
         existingTabs.forEach(tab => {
             const groupId = tab.groupId;
             if (!existingUrlsByGroup.has(groupId)) {
@@ -131,7 +123,6 @@ async function handleFileImport(event) {
             existingUrlsByGroup.get(groupId).add(tab.url);
         });
 
-        // Parse the import file
         const content = await file.text();
         const isJson = file.name.endsWith('.json');
         let tabGroups;
@@ -169,8 +160,6 @@ async function handleFileImport(event) {
             if (!urls || urls.length === 0) continue;
 
             addStatusItem(`Processing group: ${groupName}`, true);
-
-            // Filter out URLs that already exist in the same group
             const existingGroup = existingGroupsByName.get(groupName);
             const existingUrls = existingGroup ? 
                 existingUrlsByGroup.get(existingGroup.id) : new Set();
@@ -201,14 +190,12 @@ async function handleFileImport(event) {
 
             if (newTabs.length > 0) {
                 if (existingGroup) {
-                    // Add new tabs to existing group
                     await chrome.tabs.group({
                         tabIds: newTabs.map(tab => tab.id),
                         groupId: existingGroup.id
                     });
                     addStatusItem(`Added tabs to existing group "${title}"`, true);
                 } else {
-                    // Create new group
                     const groupId = await chrome.tabs.group({
                         tabIds: newTabs.map(tab => tab.id)
                     });

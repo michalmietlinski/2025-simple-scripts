@@ -1,5 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('saveButton').addEventListener('click', saveBookmarks);
+    document.getElementById('importButton').addEventListener('click', () => {
+        document.getElementById('fileInput').click();
+    });
+    document.getElementById('fileInput').addEventListener('change', handleFileImport);
 });
 
 async function saveBookmarks() {
@@ -72,4 +76,78 @@ async function saveBookmarks() {
     } catch (error) {
         console.error('Error saving tabs:', error);
     }
+}
+
+async function handleFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+        const content = await file.text();
+        const isJson = file.name.endsWith('.json');
+        let tabGroups;
+
+        if (isJson) {
+            tabGroups = JSON.parse(content);
+        } else {
+            tabGroups = {};
+            let currentGroup = null;
+            
+            const lines = content.split('\n');
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+                
+                if (line.startsWith('=== ') && line.endsWith(' ===')) {
+                    // Remove the === markers and spaces
+                    currentGroup = line.slice(4, -4).trim();
+                    if (!tabGroups[currentGroup]) {
+                        tabGroups[currentGroup] = [];
+                    }
+                } else if (currentGroup) {
+                    const url = line.trim();
+                    if (url && url.startsWith('http')) {
+                        tabGroups[currentGroup].push(url);
+                    }
+                }
+            }
+        }
+
+        const currentWindow = await chrome.windows.getCurrent();
+
+        for (const [groupName, urls] of Object.entries(tabGroups)) {
+            if (!urls || urls.length === 0) continue;
+
+            const tabPromises = urls.map(url => 
+                chrome.tabs.create({
+                    url: url,
+                    windowId: currentWindow.id,
+                    active: false
+                })
+            );
+
+            const tabs = await Promise.all(tabPromises);
+            if (groupName === 'Ungrouped') continue;
+
+            const colorMatch = groupName.match(/\((.*?)\)$/);
+            const color = colorMatch ? colorMatch[1] : 'grey';
+            const title = groupName.replace(/\s*\(.*?\)$/, '').trim();
+
+            if (tabs.length > 0) {
+                const groupId = await chrome.tabs.group({
+                    tabIds: tabs.map(tab => tab.id)
+                });
+                
+                await chrome.tabGroups.update(groupId, {
+                    title: title,
+                    color: color === 'no color' ? 'grey' : color
+                });
+            }
+        }
+
+    } catch (error) {
+        console.error('Error importing tabs:', error);
+    }
+
+    event.target.value = '';
 } 

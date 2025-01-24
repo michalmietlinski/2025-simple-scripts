@@ -1,0 +1,22 @@
+.format-selector {
+    padding: 5px;
+    margin-right: 10px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+	margin-bottom:20px;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+}
+
+#importButton {
+    background-color: #2196F3;
+    margin-top: 10px;
+}
+
+#importButton:hover {
+    background-color: #1976D2;
+} 

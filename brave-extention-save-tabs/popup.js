@@ -108,6 +108,30 @@ async function handleFileImport(event) {
     if (!file) return;
 
     try {
+        // Get existing groups and tabs first
+        const existingGroups = await chrome.tabGroups.query({ windowId: chrome.windows.WINDOW_ID_CURRENT });
+        const existingTabs = await chrome.tabs.query({ currentWindow: true });
+
+        // Create mappings for existing items
+        const existingGroupsByName = new Map();
+        const existingUrlsByGroup = new Map();
+
+        // Map existing groups
+        existingGroups.forEach(group => {
+            const groupName = `${group.title || 'Unnamed Group'} (${group.color})`;
+            existingGroupsByName.set(groupName, group);
+        });
+
+        // Map existing tabs to their groups
+        existingTabs.forEach(tab => {
+            const groupId = tab.groupId;
+            if (!existingUrlsByGroup.has(groupId)) {
+                existingUrlsByGroup.set(groupId, new Set());
+            }
+            existingUrlsByGroup.get(groupId).add(tab.url);
+        });
+
+        // Parse the import file
         const content = await file.text();
         const isJson = file.name.endsWith('.json');
         let tabGroups;
@@ -125,7 +149,6 @@ async function handleFileImport(event) {
                 if (!line) continue;
                 
                 if (line.startsWith('=== ') && line.endsWith(' ===')) {
-                    // Remove the === markers and spaces
                     currentGroup = line.slice(4, -4).trim();
                     if (!tabGroups[currentGroup]) {
                         tabGroups[currentGroup] = [];
@@ -145,13 +168,23 @@ async function handleFileImport(event) {
         for (const [groupName, urls] of Object.entries(tabGroups)) {
             if (!urls || urls.length === 0) continue;
 
-            addStatusItem(`Creating group: ${groupName}`, true);
+            addStatusItem(`Processing group: ${groupName}`, true);
+
+            // Filter out URLs that already exist in the same group
+            const existingGroup = existingGroupsByName.get(groupName);
+            const existingUrls = existingGroup ? 
+                existingUrlsByGroup.get(existingGroup.id) : new Set();
             
-            for (const url of urls) {
-                addStatusItem(`Opening: ${url}`);
+            const newUrls = urls.filter(url => !existingUrls?.has(url));
+
+            if (newUrls.length === 0) {
+                addStatusItem(`No new tabs to add in group: ${groupName}`, true);
+                continue;
             }
 
-            const tabPromises = urls.map(url => 
+            addStatusItem(`Adding ${newUrls.length} new tabs to ${groupName}`, true);
+            
+            const tabPromises = newUrls.map(url => 
                 chrome.tabs.create({
                     url: url,
                     windowId: currentWindow.id,
@@ -159,23 +192,33 @@ async function handleFileImport(event) {
                 })
             );
 
-            const tabs = await Promise.all(tabPromises);
+            const newTabs = await Promise.all(tabPromises);
             if (groupName === 'Ungrouped') continue;
 
             const colorMatch = groupName.match(/\((.*?)\)$/);
             const color = colorMatch ? colorMatch[1] : 'grey';
             const title = groupName.replace(/\s*\(.*?\)$/, '').trim();
 
-            if (tabs.length > 0) {
-                const groupId = await chrome.tabs.group({
-                    tabIds: tabs.map(tab => tab.id)
-                });
-                
-                await chrome.tabGroups.update(groupId, {
-                    title: title,
-                    color: color === 'no color' ? 'grey' : color
-                });
-                addStatusItem(`Group "${title}" created`, true);
+            if (newTabs.length > 0) {
+                if (existingGroup) {
+                    // Add new tabs to existing group
+                    await chrome.tabs.group({
+                        tabIds: newTabs.map(tab => tab.id),
+                        groupId: existingGroup.id
+                    });
+                    addStatusItem(`Added tabs to existing group "${title}"`, true);
+                } else {
+                    // Create new group
+                    const groupId = await chrome.tabs.group({
+                        tabIds: newTabs.map(tab => tab.id)
+                    });
+                    
+                    await chrome.tabGroups.update(groupId, {
+                        title: title,
+                        color: color === 'no color' ? 'grey' : color
+                    });
+                    addStatusItem(`Created new group "${title}"`, true);
+                }
             }
         }
 

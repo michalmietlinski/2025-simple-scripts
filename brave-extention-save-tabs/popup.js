@@ -6,17 +6,32 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('fileInput').addEventListener('change', handleFileImport);
 });
 
+function addStatusItem(text, isGroup = false) {
+    const status = document.getElementById('status');
+    const item = document.createElement('div');
+    item.className = `status-item ${isGroup ? 'group' : 'url'}`;
+    item.textContent = text;
+    status.appendChild(item);
+    status.scrollTop = status.scrollHeight;
+}
+
+function clearStatus() {
+    const status = document.getElementById('status');
+    status.innerHTML = '';
+}
+
 async function saveBookmarks() {
+    clearStatus();
+    addStatusItem('Starting export...', true);
+    
     const bookmarks = {};
     const formatSelector = document.getElementById('formatSelector');
     const selectedFormat = formatSelector.value;
     
     try {
-        // Get all tab groups and tabs in the current window
         const groups = await chrome.tabGroups.query({ windowId: chrome.windows.WINDOW_ID_CURRENT });
         const tabs = await chrome.tabs.query({ currentWindow: true });
         
-        // Create a map of grouped tabs
         const groupedTabs = new Map();
         groups.forEach(group => {
             groupedTabs.set(group.id, {
@@ -24,17 +39,20 @@ async function saveBookmarks() {
                 color: group.color,
                 tabs: []
             });
+            addStatusItem(`Found group: ${group.title || 'Unnamed Group'}`, true);
         });
 
-        // Sort tabs into groups or ungrouped
         tabs.forEach(tab => {
             if (tab.groupId !== -1) {
                 groupedTabs.get(tab.groupId).tabs.push(tab);
+                addStatusItem(`Added: ${tab.url}`);
             } else {
                 if (!bookmarks['Ungrouped']) {
                     bookmarks['Ungrouped'] = [];
+                    addStatusItem('Ungrouped tabs:', true);
                 }
                 bookmarks['Ungrouped'].push(tab.url);
+                addStatusItem(`Added: ${tab.url}`);
             }
         });
 
@@ -73,12 +91,19 @@ async function saveBookmarks() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+
+        addStatusItem('Export completed!', true);
+
     } catch (error) {
         console.error('Error saving tabs:', error);
+        addStatusItem(`Error: ${error.message}`, true);
     }
 }
 
 async function handleFileImport(event) {
+    clearStatus();
+    addStatusItem('Starting import...', true);
+    
     const file = event.target.files[0];
     if (!file) return;
 
@@ -89,6 +114,7 @@ async function handleFileImport(event) {
 
         if (isJson) {
             tabGroups = JSON.parse(content);
+            addStatusItem('Parsed JSON file', true);
         } else {
             tabGroups = {};
             let currentGroup = null;
@@ -111,12 +137,19 @@ async function handleFileImport(event) {
                     }
                 }
             }
+            addStatusItem('Parsed text file', true);
         }
 
         const currentWindow = await chrome.windows.getCurrent();
 
         for (const [groupName, urls] of Object.entries(tabGroups)) {
             if (!urls || urls.length === 0) continue;
+
+            addStatusItem(`Creating group: ${groupName}`, true);
+            
+            for (const url of urls) {
+                addStatusItem(`Opening: ${url}`);
+            }
 
             const tabPromises = urls.map(url => 
                 chrome.tabs.create({
@@ -142,11 +175,15 @@ async function handleFileImport(event) {
                     title: title,
                     color: color === 'no color' ? 'grey' : color
                 });
+                addStatusItem(`Group "${title}" created`, true);
             }
         }
 
+        addStatusItem('Import completed!', true);
+
     } catch (error) {
         console.error('Error importing tabs:', error);
+        addStatusItem(`Error: ${error.message}`, true);
     }
 
     event.target.value = '';

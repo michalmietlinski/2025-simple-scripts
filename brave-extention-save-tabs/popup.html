@@ -15,14 +15,24 @@
       border: none;
       border-radius: 4px;
       cursor: pointer;
+	  margin-top:20px;
     }
     button:hover {
       background-color: #45a049;
     }
+	.formatLabel{
+		margin-right:10px;
+	}
   </style>
 </head>
 <body>
-  <button id="saveTabsBtn">Save Tabs to File</button>
+  <div class="controls">
+    <label><span class="formatLabel">Format:</span><select id="formatSelector" class="format-selector">
+      <option value="text">Text File (.txt)</option>
+      <option value="json">JSON File (.json)</option>
+    </select></label>
+    <button id="saveButton">Save Bookmarks</button>
+  </div>
   <script src="popup.js"></script>
 </body>
 </html> 

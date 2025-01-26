@@ -6,17 +6,32 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('fileInput').addEventListener('change', handleFileImport);
 });
 
+function addStatusItem(text, isGroup = false) {
+    const status = document.getElementById('status');
+    const item = document.createElement('div');
+    item.className = `status-item ${isGroup ? 'group' : 'url'}`;
+    item.textContent = text;
+    status.appendChild(item);
+    status.scrollTop = status.scrollHeight;
+}
+
+function clearStatus() {
+    const status = document.getElementById('status');
+    status.innerHTML = '';
+}
+
 async function saveBookmarks() {
+    clearStatus();
+    addStatusItem('Starting export...', true);
+    
     const bookmarks = {};
     const formatSelector = document.getElementById('formatSelector');
     const selectedFormat = formatSelector.value;
     
     try {
-        // Get all tab groups and tabs in the current window
         const groups = await chrome.tabGroups.query({ windowId: chrome.windows.WINDOW_ID_CURRENT });
         const tabs = await chrome.tabs.query({ currentWindow: true });
         
-        // Create a map of grouped tabs
         const groupedTabs = new Map();
         groups.forEach(group => {
             groupedTabs.set(group.id, {
@@ -24,21 +39,23 @@ async function saveBookmarks() {
                 color: group.color,
                 tabs: []
             });
+            addStatusItem(`Found group: ${group.title || 'Unnamed Group'}`, true);
         });
 
-        // Sort tabs into groups or ungrouped
         tabs.forEach(tab => {
             if (tab.groupId !== -1) {
                 groupedTabs.get(tab.groupId).tabs.push(tab);
+                addStatusItem(`Added: ${tab.url}`);
             } else {
                 if (!bookmarks['Ungrouped']) {
                     bookmarks['Ungrouped'] = [];
+                    addStatusItem('Ungrouped tabs:', true);
                 }
                 bookmarks['Ungrouped'].push(tab.url);
+                addStatusItem(`Added: ${tab.url}`);
             }
         });
 
-        // Convert groupedTabs to bookmarks format
         groupedTabs.forEach(group => {
             if (group.tabs.length > 0) {
                 const groupName = `${group.name} (${group.color || 'no color'})`;
@@ -46,7 +63,6 @@ async function saveBookmarks() {
             }
         });
 
-        // Create content based on selected format
         let content;
         let filename;
         
@@ -54,7 +70,6 @@ async function saveBookmarks() {
             content = JSON.stringify(bookmarks, null, 2);
             filename = 'tabs.json';
         } else {
-            // Text format
             content = Object.entries(bookmarks)
                 .map(([groupName, urls]) => {
                     return `=== ${groupName} ===\n${urls.map(url => `  ${url}`).join('\n')}`;
@@ -63,7 +78,6 @@ async function saveBookmarks() {
             filename = 'tabs.txt';
         }
 
-        // Create and trigger download
         const blob = new Blob([content], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -73,22 +87,49 @@ async function saveBookmarks() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+
+        addStatusItem('Export completed!', true);
+
     } catch (error) {
         console.error('Error saving tabs:', error);
+        addStatusItem(`Error: ${error.message}`, true);
     }
 }
 
 async function handleFileImport(event) {
+    clearStatus();
+    addStatusItem('Starting import...', true);
+    
     const file = event.target.files[0];
     if (!file) return;
 
     try {
+        const existingGroups = await chrome.tabGroups.query({ windowId: chrome.windows.WINDOW_ID_CURRENT });
+        const existingTabs = await chrome.tabs.query({ currentWindow: true });
+
+        const existingGroupsByName = new Map();
+        const existingUrlsByGroup = new Map();
+
+        existingGroups.forEach(group => {
+            const groupName = `${group.title || 'Unnamed Group'} (${group.color})`;
+            existingGroupsByName.set(groupName, group);
+        });
+
+        existingTabs.forEach(tab => {
+            const groupId = tab.groupId;
+            if (!existingUrlsByGroup.has(groupId)) {
+                existingUrlsByGroup.set(groupId, new Set());
+            }
+            existingUrlsByGroup.get(groupId).add(tab.url);
+        });
+
         const content = await file.text();
         const isJson = file.name.endsWith('.json');
         let tabGroups;
 
         if (isJson) {
             tabGroups = JSON.parse(content);
+            addStatusItem('Parsed JSON file', true);
         } else {
             tabGroups = {};
             let currentGroup = null;
@@ -99,7 +140,6 @@ async function handleFileImport(event) {
                 if (!line) continue;
                 
                 if (line.startsWith('=== ') && line.endsWith(' ===')) {
-                    // Remove the === markers and spaces
                     currentGroup = line.slice(4, -4).trim();
                     if (!tabGroups[currentGroup]) {
                         tabGroups[currentGroup] = [];
@@ -111,6 +151,7 @@ async function handleFileImport(event) {
                     }
                 }
             }
+            addStatusItem('Parsed text file', true);
         }
 
         const currentWindow = await chrome.windows.getCurrent();
@@ -118,7 +159,21 @@ async function handleFileImport(event) {
         for (const [groupName, urls] of Object.entries(tabGroups)) {
             if (!urls || urls.length === 0) continue;
 
-            const tabPromises = urls.map(url => 
+            addStatusItem(`Processing group: ${groupName}`, true);
+            const existingGroup = existingGroupsByName.get(groupName);
+            const existingUrls = existingGroup ? 
+                existingUrlsByGroup.get(existingGroup.id) : new Set();
+            
+            const newUrls = urls.filter(url => !existingUrls?.has(url));
+
+            if (newUrls.length === 0) {
+                addStatusItem(`No new tabs to add in group: ${groupName}`, true);
+                continue;
+            }
+
+            addStatusItem(`Adding ${newUrls.length} new tabs to ${groupName}`, true);
+            
+            const tabPromises = newUrls.map(url => 
                 chrome.tabs.create({
                     url: url,
                     windowId: currentWindow.id,
@@ -126,27 +181,39 @@ async function handleFileImport(event) {
                 })
             );
 
-            const tabs = await Promise.all(tabPromises);
+            const newTabs = await Promise.all(tabPromises);
             if (groupName === 'Ungrouped') continue;
 
             const colorMatch = groupName.match(/\((.*?)\)$/);
             const color = colorMatch ? colorMatch[1] : 'grey';
             const title = groupName.replace(/\s*\(.*?\)$/, '').trim();
 
-            if (tabs.length > 0) {
-                const groupId = await chrome.tabs.group({
-                    tabIds: tabs.map(tab => tab.id)
-                });
-                
-                await chrome.tabGroups.update(groupId, {
-                    title: title,
-                    color: color === 'no color' ? 'grey' : color
-                });
+            if (newTabs.length > 0) {
+                if (existingGroup) {
+                    await chrome.tabs.group({
+                        tabIds: newTabs.map(tab => tab.id),
+                        groupId: existingGroup.id
+                    });
+                    addStatusItem(`Added tabs to existing group "${title}"`, true);
+                } else {
+                    const groupId = await chrome.tabs.group({
+                        tabIds: newTabs.map(tab => tab.id)
+                    });
+                    
+                    await chrome.tabGroups.update(groupId, {
+                        title: title,
+                        color: color === 'no color' ? 'grey' : color
+                    });
+                    addStatusItem(`Created new group "${title}"`, true);
+                }
             }
         }
 
+        addStatusItem('Import completed!', true);
+
     } catch (error) {
         console.error('Error importing tabs:', error);
+        addStatusItem(`Error: ${error.message}`, true);
     }
 
     event.target.value = '';

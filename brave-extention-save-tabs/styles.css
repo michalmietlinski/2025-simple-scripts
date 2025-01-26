@@ -19,4 +19,29 @@
 
 #importButton:hover {
     background-color: #1976D2;
+}
+
+.status-list {
+    margin-top: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 5px;
+    font-size: 12px;
+}
+
+.status-item {
+    margin: 2px 0;
+    padding: 2px 5px;
+    border-radius: 3px;
+}
+
+.status-item.group {
+    background-color: #e3f2fd;
+    font-weight: bold;
+}
+
+.status-item.url {
+    padding-left: 15px;
+    color: #666;
 } 

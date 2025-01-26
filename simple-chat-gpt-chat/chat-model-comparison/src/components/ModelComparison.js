@@ -44,19 +44,19 @@ function ModelComparison() {
     fetchModels();
   }, []);
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        setLogsLoading(true);
-        const response = await axios.get('http://localhost:3001/api/logs');
-        setLogs(response.data);
-      } catch (error) {
-        console.error('Error fetching logs:', error);
-      } finally {
-        setLogsLoading(false);
-      }
-    };
+  const fetchLogs = async () => {
+    try {
+      setLogsLoading(true);
+      const response = await axios.get('http://localhost:3001/api/logs');
+      setLogs(response.data);
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchLogs();
   }, []);
 
@@ -94,6 +94,8 @@ function ModelComparison() {
 
       setResponses(newResponses);
       setSavedFileName(response.data.fileName);
+      // Refresh logs after saving new response
+      fetchLogs();
 
     } catch (error) {
       const errorResponses = {};

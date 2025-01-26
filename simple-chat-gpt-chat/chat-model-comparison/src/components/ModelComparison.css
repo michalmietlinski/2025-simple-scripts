@@ -199,4 +199,10 @@ pre {
 .delete-conversation:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.form-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 } 

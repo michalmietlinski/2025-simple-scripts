@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const OpenAI = require('openai');
+const OpenAI = require('openai/index.mjs');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');

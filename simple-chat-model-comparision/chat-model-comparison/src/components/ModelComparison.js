@@ -18,6 +18,7 @@ function ModelComparison() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [deletingLogs, setDeletingLogs] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -78,6 +79,7 @@ function ModelComparison() {
 
   const fetchResponses = async () => {
     try {
+      setIsSubmitting(true);
       selectedModels.forEach(model => {
         setLoading(prev => ({ ...prev, [model]: true }));
       });
@@ -86,7 +88,7 @@ function ModelComparison() {
         models: selectedModels,
         prompt,
       });
-
+	  console.log(response.data);
       const newResponses = {};
       response.data.responses.forEach(r => {
         newResponses[r.model] = r.response;
@@ -94,7 +96,6 @@ function ModelComparison() {
 
       setResponses(newResponses);
       setSavedFileName(response.data.fileName);
-      // Refresh logs after saving new response
       fetchLogs();
 
     } catch (error) {
@@ -104,6 +105,7 @@ function ModelComparison() {
       });
       setResponses(errorResponses);
     } finally {
+      setIsSubmitting(false);
       selectedModels.forEach(model => {
         setLoading(prev => ({ ...prev, [model]: false }));
       });
@@ -138,7 +140,6 @@ function ModelComparison() {
   };
 
   const deleteConversation = async (date, fileName, event) => {
-    // Prevent triggering loadConversation when clicking delete button
     event.stopPropagation();
     
     try {
@@ -186,6 +187,7 @@ function ModelComparison() {
         modelsLoading={modelsLoading}
         modelsError={modelsError}
         clearForm={clearForm}
+        isSubmitting={isSubmitting}
       />
 
       <ResponseGrid 

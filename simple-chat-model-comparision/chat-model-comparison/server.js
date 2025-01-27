@@ -1,9 +1,17 @@
-require('dotenv').config();
-const express = require('express');
-const OpenAI = require('openai/index.mjs');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+import dotenv from 'dotenv';
+import express from 'express';
+import OpenAI from 'openai';
+import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Get __dirname equivalent in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+dotenv.config();
 
 const app = express();
 app.use(cors());

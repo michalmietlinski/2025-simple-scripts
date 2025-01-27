@@ -83,14 +83,12 @@ function ThreadedComparison() {
     try {
       const response = await axios.get(`http://localhost:3001/api/thread-history/${threadId}`);
       
-      // Get unique models from the thread history
       const uniqueModels = [...new Set(
         response.data.messages
           .filter(msg => msg.role === 'assistant')
           .map(msg => msg.model)
       )];
       
-      // Set the models used in this thread
       setSelectedModels(uniqueModels);
       setMessages(response.data.messages);
       setThreadId(threadId);

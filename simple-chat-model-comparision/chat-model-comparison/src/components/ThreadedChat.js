@@ -5,10 +5,9 @@ function ThreadedChat({
   messages, 
   selectedModels,
   loading,
-  layout = 'stacked', // 'stacked' or 'grid'
+  layout = 'stacked',
   fullWidth = false
 }) {
-  // Group messages by conversation turn
   const groupedMessages = [];
   for (let i = 0; i < messages.length; i++) {
     if (messages[i].role === 'user') {

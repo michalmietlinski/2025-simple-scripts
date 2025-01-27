@@ -7,13 +7,13 @@ import './App.css';
 
 function App() {
   const [healthStatus, setHealthStatus] = useState({
-    server: 'checking',  // 'checking', 'online', 'offline'
-    openai: 'checking'   // 'checking', 'valid', 'invalid'
+    server: 'checking',
+    openai: 'checking' 
   });
 
   useEffect(() => {
     checkHealth();
-    const interval = setInterval(checkHealth, 30000); // Check every 30 seconds
+    const interval = setInterval(checkHealth, 30000); 
     return () => clearInterval(interval);
   }, []);
 

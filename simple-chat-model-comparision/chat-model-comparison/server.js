@@ -8,7 +8,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
-// Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -16,9 +15,8 @@ dotenv.config();
 
 const app = express();
 
-// Update CORS configuration to be more specific
 app.use(cors({
-  origin: 'http://localhost:3000', // React app's URL
+  origin: 'http://localhost:3000',
   methods: ['GET', 'POST', 'DELETE'],
   credentials: true
 }));
@@ -29,16 +27,13 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Create logs directory if it doesn't exist
 const logsDir = path.join(__dirname, 'logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir);
 }
 
-// Add new constants for thread logs
 const THREAD_LOGS_DIR = path.join(__dirname, 'threadLogs');
 
-// Ensure thread logs directory exists
 async function ensureThreadLogsDir() {
   try {
     await fsPromises.access(THREAD_LOGS_DIR);
@@ -47,10 +42,8 @@ async function ensureThreadLogsDir() {
   }
 }
 
-// Initialize thread logs directory
 ensureThreadLogsDir();
 
-// Function to save conversation to file
 const saveConversation = (models, prompt, responses) => {
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
@@ -60,7 +53,6 @@ const saveConversation = (models, prompt, responses) => {
   const fileName = `${dateStr}_${timeStr}_${modelNames}.json`;
   const filePath = path.join(logsDir, dateStr);
   
-  // Create date directory if it doesn't exist
   if (!fs.existsSync(filePath)) {
     fs.mkdirSync(filePath, { recursive: true });
   }
@@ -79,24 +71,21 @@ const saveConversation = (models, prompt, responses) => {
     JSON.stringify(conversationData, null, 2)
   );
   
-  return fileName;
+  return { fileName, dateStr };
 };
 
-// Move health check endpoint to the top of routes
 app.get('/api/health', (req, res) => {
   res.set('Access-Control-Allow-Origin', 'http://localhost:3000');
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Endpoint to fetch available models
 app.get('/api/models', async (req, res) => {
   try {
     const models = await openai.models.list();
-    // Filter for chat models only and sort by name
-    const chatModels = models.data
+    const gptModels = models.data
       .filter(model => model.id.includes('gpt'))
-      .sort((a, b) => a.id.localeCompare(b.id));
-    res.json(chatModels);
+      .sort((a, b) => b.created - a.created);
+    res.json(gptModels);
   } catch (error) {
     console.error('Error fetching models:', error);
     res.status(500).json({ error: error.message });
@@ -104,41 +93,32 @@ app.get('/api/models', async (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
+  const { models, prompt } = req.body;
+  
   try {
-    const { models, prompt, previousMessages = [] } = req.body;
-    const responses = [];
-
-    // Get responses from all models
-    for (const model of models) {
-      const completion = await openai.chat.completions.create({
-        model,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-      });
-      
-      console.log('Full API Response:', JSON.stringify(completion, null, 2));
-      
-      responses.push({
-        model,
-        response: completion.choices[0].message.content
-      });
-    }
-
-    // Save conversation to file
-    const fileName = saveConversation(models, prompt, responses);
-    console.log('\n💾 Saved conversation to:', fileName);
-
-    res.json({ 
-      responses,
-      fileName 
-    });
+    const responses = await Promise.all(
+      models.map(async (model) => {
+        const completion = await openai.chat.completions.create({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+        });
+        
+        return {
+          model,
+          response: completion.choices[0].message.content
+        };
+      })
+    );
+    
+    const { fileName } = saveConversation(models, prompt, responses);
+    
+    res.json({ responses, fileName });
   } catch (error) {
-    console.error('\n❌ Error in /api/chat:', error);
+    console.error('Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Endpoint to fetch conversation logs
 app.get('/api/logs', async (req, res) => {
   try {
     const logs = [];
@@ -162,7 +142,6 @@ app.get('/api/logs', async (req, res) => {
       }
     });
     
-    // Sort by timestamp, most recent first
     logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     res.json(logs);
   } catch (error) {
@@ -171,7 +150,6 @@ app.get('/api/logs', async (req, res) => {
   }
 });
 
-// Endpoint to delete a specific conversation
 app.delete('/api/logs/:date/:filename', async (req, res) => {
   try {
     const { date, filename } = req.params;
@@ -196,7 +174,6 @@ app.delete('/api/logs/:date/:filename', async (req, res) => {
   }
 });
 
-// Endpoint to clear all history
 app.delete('/api/logs', async (req, res) => {
   try {
     const dates = fs.readdirSync(logsDir);
@@ -215,29 +192,24 @@ app.delete('/api/logs', async (req, res) => {
   }
 });
 
-// New endpoint for threaded chat
 app.post('/api/thread-chat', async (req, res) => {
   const { models, prompt, previousMessages, threadId } = req.body;
   const timestamp = new Date().toISOString();
   const responses = [];
 
   try {
-    // Check if this is a new thread
     const filePath = path.join(THREAD_LOGS_DIR, `${threadId}.json`);
     const nullFilePath = path.join(THREAD_LOGS_DIR, 'null.json');
     const isNewThread = !fs.existsSync(filePath);
     
-    // If this is a new thread and null.json exists, check if it's the continuation
     if (isNewThread && fs.existsSync(nullFilePath)) {
       try {
         const nullContent = await fsPromises.readFile(nullFilePath, 'utf-8');
         const nullLogs = nullContent.trim().split('\n').map(line => JSON.parse(line));
         const lastLog = nullLogs[nullLogs.length - 1];
         
-        // If the previous messages match the null.json content, this is a continuation
         if (previousMessages.length > 0 && 
             previousMessages[0].content === lastLog.prompt) {
-          // Move null.json content to the new thread file
           await fsPromises.rename(nullFilePath, filePath);
           console.log('Converted null.json to thread:', threadId);
         }
@@ -246,7 +218,6 @@ app.post('/api/thread-chat', async (req, res) => {
       }
     }
 
-    // Now continue with normal thread processing
     for (const model of models) {
       const messages = [...previousMessages, { role: 'user', content: prompt }];
       const completion = await openai.chat.completions.create({
@@ -258,7 +229,6 @@ app.post('/api/thread-chat', async (req, res) => {
       const response = completion.choices[0].message.content;
       responses.push({ model, response });
 
-      // Log the conversation
       const logEntry = {
         timestamp,
         threadId,
@@ -282,7 +252,6 @@ app.post('/api/thread-chat', async (req, res) => {
   }
 });
 
-// Endpoint to load thread history
 app.get('/api/thread-history/:threadId', async (req, res) => {
   const { threadId } = req.params;
   
@@ -302,9 +271,7 @@ app.get('/api/thread-history/:threadId', async (req, res) => {
       .split('\n')
       .map(line => JSON.parse(line));
 
-    // Create messages array with proper order
     const messages = [];
-    // Group logs by prompt to handle multiple models
     const promptGroups = new Map();
     
     logs.forEach(log => {
@@ -314,15 +281,12 @@ app.get('/api/thread-history/:threadId', async (req, res) => {
       promptGroups.get(log.prompt).push(log);
     });
 
-    // Process each prompt group
     promptGroups.forEach((groupLogs) => {
-      // Add user message once per prompt
       messages.push({ 
         role: 'user', 
         content: groupLogs[0].prompt 
       });
       
-      // Add all model responses for this prompt
       groupLogs.forEach(log => {
         messages.push({
           role: 'assistant',
@@ -339,7 +303,6 @@ app.get('/api/thread-history/:threadId', async (req, res) => {
   }
 });
 
-// Endpoint to list all threads
 app.get('/api/threads', async (req, res) => {
   try {
     const files = await fsPromises.readdir(THREAD_LOGS_DIR);
@@ -352,13 +315,12 @@ app.get('/api/threads', async (req, res) => {
       
       return {
         id: threadId,
-        shortId: threadId.slice(-8), // Get last 8 characters
+        shortId: threadId.slice(-8),
         firstPrompt: firstEntry.prompt,
         timestamp: firstEntry.timestamp
       };
     }));
     
-    // Sort by timestamp, newest first
     threads.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     
     res.json({ threads });
@@ -368,7 +330,6 @@ app.get('/api/threads', async (req, res) => {
   }
 });
 
-// Delete specific thread
 app.delete('/api/thread/:threadId', async (req, res) => {
   const { threadId } = req.params;
   
@@ -382,7 +343,6 @@ app.delete('/api/thread/:threadId', async (req, res) => {
   }
 });
 
-// Delete all threads
 app.delete('/api/threads', async (req, res) => {
   try {
     const files = await fsPromises.readdir(THREAD_LOGS_DIR);

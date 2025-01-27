@@ -1,0 +1,95 @@
+.threaded-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.threaded-chat.full-width {
+  max-width: none;
+}
+
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.conversation-turn {
+  margin-bottom: 20px;
+}
+
+.message {
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  max-width: 80%;
+}
+
+.message.user {
+  background-color: #e3f2fd;
+  align-self: flex-end;
+}
+
+.message.assistant {
+  background-color: #f5f5f5;
+  flex: 1;
+}
+
+.model-name {
+  font-size: 0.8em;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.responses {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.responses.stacked {
+  flex-direction: column;
+}
+
+.responses.grid {
+  flex-direction: row;
+}
+
+.responses.grid .message.assistant {
+  min-width: 0; /* Allow shrinking */
+}
+
+/* Add responsive behavior */
+@media (max-width: 768px) {
+  .responses.grid {
+    flex-direction: column;
+  }
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.chat-input button {
+  padding: 8px 16px;
+  background-color: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.chat-input button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+} 

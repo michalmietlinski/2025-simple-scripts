@@ -1,9 +1,73 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ModelComparison from './components/ModelComparison';
 import ThreadedComparison from './components/ThreadedComparison';
+import ApiManager from './components/ApiManager';
 import './App.css';
+
+// Create a new component for the navigation
+function Navigation() {
+  const location = useLocation();
+  
+  return (
+    <div className="nav-section">
+      <h3>Navigation</h3>
+      <ul>
+        <li>
+          <Link 
+            to="/" 
+            className={location.pathname === '/' ? 'active' : ''}
+          >
+            Model Comparison
+          </Link>
+        </li>
+        <li>
+          <Link 
+            to="/threaded" 
+            className={location.pathname === '/threaded' ? 'active' : ''}
+          >
+            Threaded Comparison
+          </Link>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+// Create a new component for the changelog
+function Changelog() {
+  return (
+    <div className="changelog-section">
+      <h3>Latest Updates</h3>
+      <div className="changelog-entries">
+        <div className="changelog-entry">
+          <span className="changelog-date">2024-03-20</span>
+          <div className="changelog-content">
+            <p className="changelog-title">Added Multi-Provider Support</p>
+            <ul>
+              <li>Support for OpenAI, DeepSeek, and Anthropic APIs</li>
+              <li>Custom API endpoint configuration</li>
+              <li>Multiple API keys management</li>
+              <li>⚠️ DeepSeek and Anthropic integration needs testing</li>
+            </ul>
+          </div>
+        </div>
+        <div className="changelog-entry">
+          <span className="changelog-date">2024-03-19</span>
+          <div className="changelog-content">
+            <p className="changelog-title">Initial Release</p>
+            <ul>
+              <li>Basic model comparison</li>
+              <li>Conversation threading</li>
+              <li>History management</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [healthStatus, setHealthStatus] = useState({
@@ -58,13 +122,9 @@ function App() {
             </div>
           </div>
 
-          <div className="nav-section">
-            <h3>Navigation</h3>
-            <ul>
-              <li><Link to="/">Model Comparison</Link></li>
-              <li><Link to="/threaded">Threaded Comparison</Link></li>
-            </ul>
-          </div>
+          <ApiManager />
+          
+          <Navigation />
 
           <div className="help-section">
             <h3>Quick Guide</h3>
@@ -87,6 +147,8 @@ function App() {
               </div>
             </div>
           </div>
+
+          <Changelog />
         </nav>
         <main className="main-content">
           <Routes>

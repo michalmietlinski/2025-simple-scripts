@@ -1,70 +1,121 @@
-# Getting Started with Create React App
+# AI Model Comparison Tool
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A web application for comparing responses from different AI language models side by side, with support for both single-shot and threaded conversations.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+### Current
+- **Multi-Provider Support**
+  - OpenAI (GPT-3.5, GPT-4)
+  - DeepSeek (coming soon)
+  - Anthropic (coming soon)
+  - Custom API endpoint configuration
 
-### `npm start`
+- **Conversation Modes**
+  - Single-shot comparison
+  - Threaded conversations
+  - History tracking and management
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **UI/UX**
+  - Dark/Light theme support
+  - Responsive design
+  - Grid/Stacked view options
+  - Full-width toggle
+  - Interactive help system
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- **API Management**
+  - Multiple API key management
+  - Provider status monitoring
+  - Custom endpoint configuration
 
-### `npm test`
+### Coming Soon
+This project will be expanded into a new repository with additional features:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+- Enhanced provider support
+  - Azure OpenAI
+  - Google Gemini
+  - Mistral AI
+  - Local models (Ollama integration)
+  
+- Advanced features
+  - Prompt templates
+  - Model parameter adjustment (temperature, etc.)
+  
+- Collaboration features
+  - Export results
 
-### `npm run build`
+## Setup
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. Clone the repository:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+2. Install dependencies:
+```bash
+npm install
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+3. Set up configuration:
+```bash
+cp config/apis.example.json config/apis.json
+```
 
-### `npm run eject`
+4. (Optional) Update `apis.json` with your API keys:
+```json
+{
+  "apis": [
+    {
+      "id": 1234567890,
+      "name": "OpenAI",
+      "provider": "openai",
+      "key": "your-api-key",
+      "active": true
+    }
+  ]
+}
+```
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+5. Start the development server:
+```bash
+# Terminal 1 - Frontend
+npm start
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+# Terminal 2 - Backend
+npm run server
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## Usage
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+1. **Model Selection**: Choose which AI models you want to compare
+2. **Enter Prompt**: Type your prompt in the text area
+3. **View Responses**: See responses side by side
+4. **Thread Mode**: Continue conversations with context
 
-## Learn More
+## Contributing
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+This project is in active development. Contributions are welcome! Please check the issues page or create new ones for features and bugs.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Development Plans
 
-### Code Splitting
+1. **Phase 1** (Current)
+   - Basic model comparison
+   - Thread support
+   - Multi-provider groundwork
+   - Dark/Light theme
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+2. **Phase 2** (Coming Soon)
+   - New repository launch
+   - Extended provider support
+   - Advanced features
+   - API improvements
 
-### Analyzing the Bundle Size
+## License
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+MIT License - See LICENSE file for details
 
-### Making a Progressive Web App
+## Acknowledgments
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+- OpenAI for their API
+- React community for components and inspiration
+- Contributors and testers
 
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+---
+**Note**: This project will soon move to a new repository with expanded features and improved architecture. Stay tuned for updates!

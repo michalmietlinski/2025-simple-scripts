@@ -12,7 +12,8 @@ const AppState = {
         getConversationId: (user1, user2) => {
             if (!user1 || !user2) return null;
             return [user1, user2].sort().join('-');
-        }
+        },
+        generateId: () => crypto.randomUUID()
     }
 };
 
@@ -83,9 +84,13 @@ const ApiService = {
 
 // Message handling
 const MessageHandler = {
-    sentMessages: new Set(), // Track message IDs we've already handled
-
+    sentMessages: new Set(),
+    
     getMessageId(msg) {
+        return msg.id || this.getMessageHash(msg);
+    },
+
+    getMessageHash(msg) {
         return `${msg.sender}-${msg.timestamp}-${msg.message}`;
     },
 
@@ -113,6 +118,11 @@ const MessageHandler = {
                 this.sentMessages.add(messageId);
             }
             
+            // Ensure message has an ID
+            if (!messageData.id) {
+                messageData.id = AppState.messages.generateId();
+            }
+
             const result = await ApiService.post(CONFIG.api.endpoints.saveChatMessage, {
                 username: AppState.user,
                 peerId: conversationId,
@@ -129,20 +139,31 @@ const MessageHandler = {
         }
     },
 
-    addToChat(message, sender, shouldSave = true) {
+    async addToChat(message, sender, shouldSave = true) {
+        const timestamp = Date.now();
+        const messageData = {
+            id: AppState.messages.generateId(),
+            sender,
+            message,
+            timestamp
+        };
+
+        // Skip if we've already handled this message
+        const messageId = this.getMessageId(messageData);
+        if (this.sentMessages.has(messageId)) {
+            return;
+        }
+
         const messageElement = document.createElement('div');
         messageElement.className = `message ${sender === AppState.user ? 'sent' : 'received'}`;
         messageElement.textContent = `${sender}: ${message}`;
         UI.elements.messagesContainer.appendChild(messageElement);
         UI.elements.messagesContainer.scrollTop = UI.elements.messagesContainer.scrollHeight;
 
+        this.sentMessages.add(messageId);
+
         if (shouldSave) {
-            const messageData = {
-                sender,
-                message,
-                timestamp: Date.now()
-            };
-            this.save(AppState.connection.currentPeer, messageData);
+            await this.save(AppState.connection.currentPeer, messageData);
         }
     }
 };
@@ -309,7 +330,11 @@ async function loadConversationHistory(peerId) {
         
         if (response.success && response.messages) {
             UI.elements.messagesContainer.innerHTML = '';
+            MessageHandler.sentMessages.clear(); // Clear tracked messages before loading history
+            
             response.messages.forEach(msg => {
+                const messageId = MessageHandler.getMessageId(msg);
+                MessageHandler.sentMessages.add(messageId);
                 MessageHandler.addToChat(msg.message, msg.sender, false);
             });
         }
@@ -402,9 +427,14 @@ Object.assign(window, {
             if (data.success) {
                 AppState.user = username;
                 UI.toggleVisibility('userSetup', false);
-                UI.toggleVisibility('connectionPanel', true);
+                
+                // Show conversations panel first
                 document.getElementById('userId').textContent = username;
                 await displayAllConversations();
+                UI.toggleVisibility('statusPanel', true);
+                
+                // Show connection panel after conversations are loaded
+                UI.toggleVisibility('connectionPanel', true);
             }
         } catch (error) {
             console.error('Registration failed:', error);
@@ -520,29 +550,51 @@ async function displayAllConversations() {
         const container = UI.elements.conversationsContainer;
         container.innerHTML = '';
         
-        for (const [peerId, messages] of Object.entries(response.conversations)) {
-            // Skip invalid conversation IDs
-            if (!peerId.includes('-')) continue;
+        const conversations = Object.entries(response.conversations);
+        
+        if (conversations.length === 0) {
+            container.innerHTML = '<div class="no-conversations">No conversations yet. Start a new one!</div>';
+            return;
+        }
+        
+        conversations.forEach(([peerId, messages]) => {
+            if (!peerId.includes('-')) return;
             
             const peerNames = peerId.split('-');
             const otherUser = peerNames.find(name => name !== AppState.user);
-            if (!otherUser) continue;
+            if (!otherUser) return;
             
+            const lastMessage = messages[messages.length - 1];
             const conversationDiv = document.createElement('div');
             conversationDiv.className = 'conversation-item';
+            
+            const lastMessagePreview = lastMessage ? 
+                `<p class="last-message">${lastMessage.sender}: ${lastMessage.message}</p>` : '';
+            
             conversationDiv.innerHTML = `
-                <h5>${otherUser}</h5>
-                <small>${messages.length} messages</small>
+                <div class="conversation-header">
+                    <h5>${otherUser}</h5>
+                    <small>${messages.length} messages</small>
+                </div>
+                ${lastMessagePreview}
             `;
+            
             conversationDiv.onclick = async () => {
+                // Highlight selected conversation
+                document.querySelectorAll('.conversation-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+                conversationDiv.classList.add('selected');
+                
                 AppState.connection.currentPeer = peerId;
                 AppState.connection.peerUsername = otherUser;
                 await loadConversationHistory(peerId);
                 UI.toggleVisibility('chatPanel', true);
                 document.getElementById('peerId').value = otherUser;
             };
+            
             container.appendChild(conversationDiv);
-        }
+        });
     } catch (error) {
         console.error('Error loading conversations:', error);
         UI.updateStatus('Failed to load conversations');
@@ -556,29 +608,33 @@ async function mergeMessages(remoteMessages) {
         );
         const localMessages = response.success ? response.messages : [];
 
-        // Create a map of existing messages to avoid duplicates
         const uniqueMessages = new Map();
+        const seenMessageIds = new Set();
         
-        // Add local messages first
-        localMessages.forEach(msg => {
+        // Process both local and remote messages
+        [...localMessages, ...remoteMessages].forEach(msg => {
             const messageId = MessageHandler.getMessageId(msg);
-            uniqueMessages.set(messageId, msg);
-            MessageHandler.sentMessages.add(messageId); // Track existing messages
-        });
-
-        // Add remote messages, overwriting duplicates
-        remoteMessages.forEach(msg => {
-            const messageId = MessageHandler.getMessageId(msg);
-            uniqueMessages.set(messageId, msg);
-            MessageHandler.sentMessages.add(messageId); // Track synced messages
+            if (!seenMessageIds.has(messageId)) {
+                uniqueMessages.set(messageId, msg);
+                seenMessageIds.add(messageId);
+            }
         });
 
         const mergedMessages = Array.from(uniqueMessages.values())
             .sort((a, b) => a.timestamp - b.timestamp);
 
-        // Save merged messages and update display
+        // Save merged messages
         await MessageHandler.save(AppState.connection.currentPeer, mergedMessages, true);
-        await loadConversationHistory(AppState.connection.currentPeer);
+        
+        // Clear and reload the chat
+        UI.elements.messagesContainer.innerHTML = '';
+        MessageHandler.sentMessages.clear();
+        
+        mergedMessages.forEach(msg => {
+            const messageId = MessageHandler.getMessageId(msg);
+            MessageHandler.sentMessages.add(messageId);
+            MessageHandler.addToChat(msg.message, msg.sender, false);
+        });
     } catch (error) {
         console.error('Error merging messages:', error);
         UI.updateStatus('Failed to sync messages');

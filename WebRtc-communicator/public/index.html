@@ -51,6 +51,64 @@
             flex: 1;
             padding: 5px;
         }
+        
+        #statusPanel {
+            display: none;
+            margin: 20px 0;
+        }
+        
+        #statusPanel.visible {
+            display: block;
+        }
+        
+        .conversation-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .conversation-item:hover {
+            background: #e0e0e0;
+        }
+        
+        .conversation-item.selected {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .conversation-item h5 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .conversation-item small {
+            color: #666;
+        }
+        
+        .last-message {
+            margin: 5px 0 0;
+            font-size: 0.9em;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .no-conversations {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>

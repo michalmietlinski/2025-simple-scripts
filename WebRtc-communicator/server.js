@@ -3,6 +3,7 @@ const ws = require('ws');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
+const crypto = require('crypto');
 
 const app = express();
 const port = 3000;
@@ -33,6 +34,25 @@ app.post('/api/user/register', (req, res) => {
     res.json({ success: true, username });
 });
 
+// Add helper function for message deduplication
+function deduplicateMessages(messages) {
+    const uniqueMessages = new Map();
+    
+    messages.forEach(msg => {
+        const messageId = msg.id || `${msg.sender}-${msg.timestamp}-${msg.message}`;
+        if (!uniqueMessages.has(messageId) || msg.id) {
+            uniqueMessages.set(messageId, {
+                ...msg,
+                id: msg.id || crypto.randomUUID()
+            });
+        }
+    });
+    
+    return Array.from(uniqueMessages.values())
+        .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+// Update conversation save endpoint
 app.post('/api/conversation/save', (req, res) => {
     const { username, peerId, data, overwrite } = req.body;
     const conversationPath = path.join(DATA_DIR, username, `${peerId}.json`);
@@ -53,9 +73,13 @@ app.post('/api/conversation/save', (req, res) => {
         }
 
         if (Array.isArray(data)) {
-            messages = data; // For overwriting with merged messages
+            messages = deduplicateMessages([...messages, ...data]);
         } else {
-            messages.push(data);
+            messages.push({
+                ...data,
+                id: data.id || crypto.randomUUID()
+            });
+            messages = deduplicateMessages(messages);
         }
 
         fs.writeFileSync(conversationPath, JSON.stringify(messages, null, 2));
@@ -66,6 +90,7 @@ app.post('/api/conversation/save', (req, res) => {
     }
 });
 
+// Update conversation get endpoint
 app.get('/api/conversation/:username/:peerId', (req, res) => {
     const { username, peerId } = req.params;
     const conversationPath = path.join(DATA_DIR, username, `${peerId}.json`);
@@ -73,7 +98,14 @@ app.get('/api/conversation/:username/:peerId', (req, res) => {
     try {
         if (fs.existsSync(conversationPath)) {
             const messages = JSON.parse(fs.readFileSync(conversationPath, 'utf8'));
-            res.json({ success: true, messages });
+            const deduplicatedMessages = deduplicateMessages(messages);
+            
+            // Save deduped messages back if needed
+            if (deduplicatedMessages.length !== messages.length) {
+                fs.writeFileSync(conversationPath, JSON.stringify(deduplicatedMessages, null, 2));
+            }
+            
+            res.json({ success: true, messages: deduplicatedMessages });
         } else {
             res.json({ success: true, messages: [] });
         }

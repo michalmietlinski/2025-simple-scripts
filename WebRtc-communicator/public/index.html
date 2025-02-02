@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebRTC Chat</title>
+    <style>
+        .hidden { display: none; }
+        textarea {
+            width: 100%;
+            max-width: 400px;
+            margin: 10px 0;
+        }
+        #connectionInfo {
+            margin: 20px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        #messages {
+            background: #fff;
+        }
+        
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        
+        .message.sent {
+            background: #e3f2fd;
+            margin-left: 20%;
+        }
+        
+        .message.received {
+            background: #f5f5f5;
+            margin-right: 20%;
+        }
+        
+        #connectionStatus {
+            padding: 10px;
+            margin: 10px 0;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+        
+        #chatControls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        #messageInput {
+            flex: 1;
+            padding: 5px;
+        }
+        
+        #statusPanel {
+            display: none;
+            margin: 20px 0;
+        }
+        
+        #statusPanel.visible {
+            display: block;
+        }
+        
+        .conversation-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .conversation-item:hover {
+            background: #e0e0e0;
+        }
+        
+        .conversation-item.selected {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .conversation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .conversation-item h5 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .conversation-item small {
+            color: #666;
+        }
+        
+        .last-message {
+            margin: 5px 0 0;
+            font-size: 0.9em;
+            color: #666;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .no-conversations {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .message-input-group {
+            display: flex;
+            flex: 1;
+            gap: 5px;
+        }
+        
+        .file-button {
+            padding: 5px 10px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.2em;
+        }
+        
+        .file-button:hover {
+            background: #e0e0e0;
+        }
+        
+        .message.file {
+            background: #e8f5e9;
+        }
+        
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .file-download {
+            padding: 3px 8px;
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .file-download:hover {
+            background: #43a047;
+        }
+    </style>
+</head>
+<body>
+    <div id="userSetup">
+        <h2>Enter your username</h2>
+        <input type="text" id="username" />
+        <button onclick="registerUser()">Start</button>
+    </div>
+
+    <div id="connectionPanel" class="hidden">
+        <h3>Your ID: <span id="userId"></span></h3>
+        
+        <!-- Step 1: Create connection -->
+        <div>
+            <h4>Step 1: Create Connection</h4>
+            <input type="text" id="peerId" placeholder="Peer ID" />
+            <button onclick="connect()">Create Connection</button>
+        </div>
+        
+        <!-- Step 2: Share connection info -->
+        <div id="connectionInfo" class="hidden">
+            <h4>Step 2: Share Connection Info</h4>
+            <p>Send this to the other peer:</p>
+            <textarea id="connectionInfoDisplay" rows="5" readonly></textarea>
+            <button onclick="copyConnectionInfo()">Copy</button>
+        </div>
+
+        <!-- Step 3: Handle response -->
+        <div>
+            <h4>Step 3: Accept Connection</h4>
+            <p>Paste the connection info you received:</p>
+            <textarea id="offerInput" rows="5" placeholder="Paste connection info here"></textarea>
+            <button onclick="handleOffer(document.getElementById('offerInput').value)">
+                Accept Connection
+            </button>
+        </div>
+    </div>
+
+    <!-- Add this after the connection panels -->
+    <div id="statusPanel">
+        <div id="connectionStatus">
+            Status: <span>Disconnected</span>
+            <small id="peerInfo"></small>
+        </div>
+        <div id="conversationsList">
+            <h4>Conversations</h4>
+            <div id="conversationsContainer"></div>
+        </div>
+    </div>
+
+    <div id="chatPanel" class="hidden">
+        <div id="messages" style="height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0;"></div>
+        <div id="chatControls">
+            <div class="message-input-group">
+                <input type="text" id="messageInput" placeholder="Type a message..." />
+                <button onclick="document.getElementById('fileInput').click()" class="file-button">
+                    📎
+                </button>
+                <input type="file" id="fileInput" style="display: none" />
+            </div>
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script src="js/main.js" defer></script>
+</body>
+</html> 

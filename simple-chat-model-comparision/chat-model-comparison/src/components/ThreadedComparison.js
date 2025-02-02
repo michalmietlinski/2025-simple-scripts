@@ -82,18 +82,21 @@ function ThreadedComparison() {
   const loadThread = async (threadId) => {
     try {
       const response = await axios.get(`http://localhost:3001/api/thread-history/${threadId}`);
-      
       const uniqueModels = [...new Set(
         response.data.messages
-          .filter(msg => msg.role === 'assistant')
+          .filter(msg => msg.role === 'assistant' && msg.model)
           .map(msg => msg.model)
-      )];
+      )].filter(Boolean);
       
-      setSelectedModels(uniqueModels);
-      setMessages(response.data.messages);
-      setThreadId(threadId);
-      setModelsLocked(true);
-      setShowHistory(false);
+      if (uniqueModels.length > 0) {
+        setSelectedModels(uniqueModels);
+        setMessages(response.data.messages);
+        setThreadId(threadId);
+        setModelsLocked(true);
+        setShowHistory(false);
+      } else {
+        console.error('No valid models found in thread history');
+      }
     } catch (error) {
       console.error('Error loading thread:', error);
     }
@@ -113,16 +116,11 @@ function ThreadedComparison() {
         setLoading(prev => ({ ...prev, [model]: true }));
       });
 
-      const previousMessages = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
-
       const response = await axios.post('http://localhost:3001/api/thread-chat', {
         models: selectedModels,
         prompt,
-        previousMessages,
-        threadId
+        threadId,
+        previousMessages: messages
       });
 
       setMessages(prev => [...prev, {
@@ -131,11 +129,13 @@ function ThreadedComparison() {
       }]);
 
       response.data.responses.forEach(r => {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          model: r.model,
-          content: r.response
-        }]);
+        if (!r.error) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            model: r.model,
+            content: r.response
+          }]);
+        }
       });
 
       setPrompt('');

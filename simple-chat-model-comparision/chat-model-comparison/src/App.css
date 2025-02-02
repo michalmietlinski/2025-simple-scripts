@@ -1,3 +1,52 @@
+:root {
+  /* Light theme */
+  --bg-color: #ffffff;
+  --sidebar-bg: #f8f9fa;
+  --text-color: #333333;
+  --text-secondary: #666666;
+  --border-color: #dee2e6;
+  --primary-color: #1976d2;
+  --hover-color: #f5f5f5;
+  --toggle-bg: #e9ecef;
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --primary-color-alpha: rgba(25, 118, 210, 0.1);
+}
+
+[data-theme="dark"] {
+  --bg-color: #1a1a1a;
+  --sidebar-bg: #2d2d2d;
+  --text-color: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --border-color: #404040;
+  --primary-color: #2196f3;
+  --hover-color: #333333;
+  --toggle-bg: #404040;
+  --card-bg: #2d2d2d;
+  --input-bg: #333333;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --primary-color-alpha: rgba(33, 150, 243, 0.1);
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Update existing component styles to use variables */
+.app {
+  background-color: var(--bg-color);
+}
+
+.sidebar {
+  background-color: var(--sidebar-bg);
+  border-right: 1px solid var(--border-color);
+}
+
+/* Add more variable-based styles as needed */
+
 .App {
   text-align: center;
 }
@@ -43,7 +92,6 @@
 
 .sidebar {
   width: 280px;
-  background-color: #f5f5f5;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -70,10 +118,11 @@
 }
 
 .status-indicators {
-  background-color: white;
+  background-color: var(--card-bg);
   padding: 12px;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px var(--shadow-color);
+  border: 1px solid var(--border-color);
 }
 
 .status-item {
@@ -82,6 +131,7 @@
   gap: 8px;
   margin-bottom: 8px;
   font-size: 0.9em;
+  color: var(--text-color);
 }
 
 .status-item:last-child {
@@ -111,18 +161,21 @@
 }
 
 .nav-section,
-.help-section {
-  background-color: white;
+.help-section,
+.changelog-section {
+  background-color: var(--card-bg);
   padding: 16px;
   border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px var(--shadow-color);
+  border: 1px solid var(--border-color);
 }
 
 .help-section h3,
-.nav-section h3 {
+.nav-section h3,
+.changelog-section h3 {
   margin: 0 0 12px 0;
   font-size: 1.1em;
-  color: #333;
+  color: var(--text-color);
 }
 
 .steps {
@@ -154,11 +207,164 @@
   margin: 0;
   font-size: 0.9em;
   line-height: 1.4;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 @keyframes pulse {
   0% { opacity: 1; }
   50% { opacity: 0.5; }
   100% { opacity: 1; }
+}
+
+/* Update navigation styles */
+.nav-section a {
+  display: block;
+  padding: 8px 12px;
+  color: var(--text-color);
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.nav-section a:hover {
+  background-color: var(--hover-color);
+}
+
+.nav-section a.active {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+/* Add changelog styles */
+.changelog-entries {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.changelog-entry {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.changelog-entry:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.changelog-date {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.changelog-title {
+  font-weight: 500;
+  margin: 0 0 8px 0;
+  color: var(--primary-color);
+}
+
+.changelog-content ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.changelog-content li {
+  margin-bottom: 4px;
+  font-size: 0.9em;
+  color: var(--text-color);
+}
+
+.changelog-content li:last-child {
+  margin-bottom: 0;
+}
+
+/* Add warning highlight */
+.changelog-content li:contains('⚠️') {
+  color: #856404;
+  background-color: #fff3cd;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Update sidebar layout */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+/* Add to existing changelog styles */
+.changelog-loading,
+.changelog-error {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-style: italic;
+}
+
+.changelog-error {
+  color: #dc3545;
+}
+
+.changelog-content li.warning {
+  color: #856404;
+  background-color: var(--card-bg);
+  border: 1px solid #856404;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Remove the :contains selector as it's not widely supported */
+.changelog-content li:contains('⚠️') {
+  /* Remove this rule */
+}
+
+/* Update form elements */
+textarea,
+input[type="text"] {
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+textarea:focus,
+input[type="text"]:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-color-alpha);
+}
+
+/* Update thread ID styling */
+.thread-id {
+  font-size: 0.8em;
+  color: var(--text-color);
+  font-family: monospace;
+  background-color: var(--input-bg);
+  padding: 2px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+}
+
+/* Update thread prompt */
+.thread-prompt {
+  margin-top: 8px;
+  font-size: 0.9em;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Update API manager header */
+.api-header h3 {
+  margin: 0;
+  font-size: 1.1em;
+  color: var(--text-color);
 }

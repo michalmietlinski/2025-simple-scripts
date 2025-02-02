@@ -48,19 +48,21 @@ button:disabled {
 
 .response-card {
   padding: 20px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background-color: #f9f9f9;
+  background-color: var(--card-bg);
+  color: var(--text-color);
 }
 
 .response-card h3 {
   margin-top: 0;
   margin-bottom: 10px;
+  color: var(--text-color);
 }
 
 .loading {
   text-align: center;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .error {
@@ -70,11 +72,12 @@ button:disabled {
   border: 1px solid #dc3545;
   border-radius: 4px;
   margin-bottom: 20px;
+  background-color: var(--card-bg);
 }
 
 .model-selection .loading {
   padding: 20px;
-  background-color: #f8f9fa;
+  background-color: var(--card-bg);
   border-radius: 4px;
 }
 
@@ -86,9 +89,9 @@ pre {
 .save-info {
   margin: 10px 0;
   padding: 10px;
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   text-align: center;
 }
@@ -116,8 +119,8 @@ pre {
 .history-panel {
   margin-bottom: 20px;
   padding: 20px;
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
 }
 
@@ -143,20 +146,21 @@ pre {
 .history-item {
   padding: 15px;
   margin-bottom: 10px;
-  background-color: white;
-  border: 1px solid #dee2e6;
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s;
+  color: var(--text-color);
 }
 
 .history-item:hover {
-  background-color: #e9ecef;
+  background-color: var(--hover-color);
 }
 
 .history-date {
   font-size: 0.9em;
-  color: #6c757d;
+  color: var(--text-secondary);
   margin-bottom: 5px;
   display: flex;
   justify-content: space-between;
@@ -170,12 +174,12 @@ pre {
 
 .history-models {
   font-size: 0.9em;
-  color: #6c757d;
+  color: var(--text-secondary);
 }
 
 .no-history {
   text-align: center;
-  color: #6c757d;
+  color: var(--text-secondary);
   padding: 20px;
 }
 

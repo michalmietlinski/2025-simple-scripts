@@ -1,0 +1,28 @@
+{
+  "apis": [
+    {
+      "id": 1234567890,
+      "name": "Example OpenAI",
+      "provider": "openai",
+      "key": "sk-...",
+      "url": "https://api.openai.com/v1",
+      "active": true
+    },
+    {
+      "id": 1234567891,
+      "name": "Example Anthropic",
+      "provider": "anthropic",
+      "key": "sk-ant-...",
+      "url": "https://api.anthropic.com/v1",
+      "active": true
+    },
+    {
+      "id": 1234567892,
+      "name": "Example DeepSeek",
+      "provider": "deepseek",
+      "key": "...",
+      "url": "https://api.deepseek.com/v1",
+      "active": true
+    }
+  ]
+} 

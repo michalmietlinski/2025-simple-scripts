@@ -1,0 +1,339 @@
+.api-manager {
+  background-color: var(--card-bg);
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px var(--shadow-color);
+  border: 1px solid var(--border-color);
+}
+
+.api-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.api-header h3 {
+  margin: 0;
+  font-size: 1.1em;
+  color: #333;
+}
+
+.add-api-button {
+  background-color: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-api-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.add-api-form input {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.add-api-form button {
+  padding: 8px;
+  background-color: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.api-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.api-item {
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.api-item:last-child {
+  border-bottom: none;
+}
+
+.api-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.api-name {
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.api-provider {
+  color: var(--text-secondary);
+  font-size: 0.9em;
+}
+
+.api-status {
+  color: var(--text-secondary);
+}
+
+.api-status.active {
+  color: #4caf50;
+}
+
+.api-status.inactive {
+  color: #f44336;
+}
+
+.api-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.api-controls button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.api-controls button:disabled {
+  background-color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+.api-controls button.delete {
+  background-color: #dc3545;
+}
+
+.api-key {
+  font-family: monospace;
+  font-size: 12px;
+  color: #666;
+  width:100%;
+  overflow:hidden;
+}
+
+.api-url {
+  font-size: 0.8em;
+  color: #666;
+  font-family: monospace;
+  margin-top: 4px;
+  word-break: break-all;
+}
+
+.add-api-form input[type="text"],
+.add-api-form input[type="password"],
+.add-api-form select {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 100%;
+}
+
+.api-header-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.help-icon {
+  background: none;
+  border: 1px solid #dee2e6;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  color: #666;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.help-icon:hover {
+  background-color: #e9ecef;
+  color: #333;
+  border-color: #ced4da;
+}
+
+.help-icon.small {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.api-modal {
+  position: relative;
+  width: 90%;
+  max-width: 500px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.modal-close:hover {
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+.api-modal h4 {
+  margin: 0 0 16px 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.api-modal p {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.api-modal ol {
+  margin: 0 0 20px 0;
+  padding-left: 24px;
+}
+
+.api-modal li {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.provider-button {
+  background: none;
+  border: 1px solid #dee2e6;
+  padding: 12px;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.provider-button:hover {
+  background-color: #f8f9fa;
+  border-color: #1976d2;
+  color: #1976d2;
+}
+
+.provider-link {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 8px 16px;
+  background-color: #1976d2;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.provider-link:hover {
+  background-color: #1565c0;
+  text-decoration: none;
+}
+
+.select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.select-wrapper select {
+  flex: 1;
+}
+
+.api-form input,
+.api-form select {
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.api-form input:focus,
+.api-form select:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-color-alpha);
+}
+
+.api-form label {
+  color: var(--text-color);
+} 

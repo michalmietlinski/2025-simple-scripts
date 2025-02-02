@@ -1,9 +1,108 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import ModelComparison from './components/ModelComparison';
 import ThreadedComparison from './components/ThreadedComparison';
+import ApiManager from './components/ApiManager';
+import ThemeToggle from './components/ThemeToggle';
 import './App.css';
+
+// Create a new component for the navigation
+function Navigation() {
+  const location = useLocation();
+  
+  return (
+    <div className="nav-section">
+      <h3>Navigation</h3>
+      <ul>
+        <li>
+          <Link 
+            to="/" 
+            className={location.pathname === '/' ? 'active' : ''}
+          >
+            Model Comparison
+          </Link>
+        </li>
+        <li>
+          <Link 
+            to="/threaded" 
+            className={location.pathname === '/threaded' ? 'active' : ''}
+          >
+            Threaded Comparison
+          </Link>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+// Create a new component for the changelog
+function Changelog() {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchChangelog = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get('http://localhost:3001/api/changelog');
+        setEntries(response.data.entries);
+      } catch (error) {
+        console.error('Error fetching changelog:', error);
+        setError('Failed to load changelog');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChangelog();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="changelog-section">
+        <h3>Latest Updates</h3>
+        <div className="changelog-loading">Loading updates...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="changelog-section">
+        <h3>Latest Updates</h3>
+        <div className="changelog-error">{error}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="changelog-section">
+      <h3>Latest Updates</h3>
+      <div className="changelog-entries">
+        {entries.map((entry, index) => (
+          <div key={`${entry.date}-${index}`} className="changelog-entry">
+            <span className="changelog-date">{entry.date}</span>
+            <div className="changelog-content">
+              <p className="changelog-title">{entry.title}</p>
+              <ul>
+                {entry.items.map((item, itemIndex) => (
+                  <li 
+                    key={itemIndex}
+                    className={item.includes('⚠️') ? 'warning' : ''}
+                  >
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const [healthStatus, setHealthStatus] = useState({
@@ -11,11 +110,23 @@ function App() {
     openai: 'checking' 
   });
 
+  const [isDarkMode, setIsDarkMode] = useState(
+    localStorage.getItem('theme') === 'dark'
+  );
+
   useEffect(() => {
     checkHealth();
     const interval = setInterval(checkHealth, 30000); 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      'data-theme',
+      isDarkMode ? 'dark' : 'light'
+    );
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
 
   const checkHealth = async () => {
     try {
@@ -43,10 +154,18 @@ function App() {
     }
   };
 
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
   return (
     <BrowserRouter>
       <div className="app-container">
         <nav className="sidebar">
+		<ThemeToggle 
+            isDark={isDarkMode} 
+            onToggle={toggleTheme}
+          />
           <div className="status-indicators">
             <div className={`status-item ${healthStatus.server}`}>
               <span className="status-dot"></span>
@@ -58,13 +177,9 @@ function App() {
             </div>
           </div>
 
-          <div className="nav-section">
-            <h3>Navigation</h3>
-            <ul>
-              <li><Link to="/">Model Comparison</Link></li>
-              <li><Link to="/threaded">Threaded Comparison</Link></li>
-            </ul>
-          </div>
+          <ApiManager />
+          
+          <Navigation />
 
           <div className="help-section">
             <h3>Quick Guide</h3>
@@ -87,6 +202,10 @@ function App() {
               </div>
             </div>
           </div>
+
+          <Changelog />
+
+       
         </nav>
         <main className="main-content">
           <Routes>

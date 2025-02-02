@@ -1,8 +1,9 @@
 .thread-history-panel {
-  background-color: white;
+  background-color: var(--card-bg);
   padding: 20px;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px var(--shadow-color);
+  border: 1px solid var(--border-color);
   margin-bottom: 20px;
 }
 
@@ -15,14 +16,16 @@
 
 .thread-item {
   padding: 15px;
-  background-color: #f8f9fa;
+  background-color: var(--input-bg);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.2s;
+  color: var(--text-color);
 }
 
 .thread-item:hover {
-  background-color: #e9ecef;
+  background-color: var(--hover-color);
 }
 
 .thread-header {
@@ -30,6 +33,7 @@
   justify-content: space-between;
   align-items: center;
   font-weight: 500;
+  color: var(--text-color);
 }
 
 .delete-thread {
@@ -42,7 +46,7 @@
 }
 
 .delete-thread:disabled {
-  background-color: #6c757d;
+  background-color: var(--text-secondary);
   cursor: not-allowed;
 }
 
@@ -57,6 +61,10 @@
   cursor: pointer;
 }
 
+.clear-all-history:hover {
+  background-color: #c82333;
+}
+
 .thread-info {
   display: flex;
   align-items: center;
@@ -65,7 +73,7 @@
 
 .thread-timestamp {
   font-size: 0.8em;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .thread-id {

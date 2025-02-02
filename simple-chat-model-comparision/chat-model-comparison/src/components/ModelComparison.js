@@ -4,6 +4,7 @@ import './ModelComparison.css';
 import ComparisonForm from './ComparisonForm';
 import ResponseGrid from './ResponseGrid';
 import HistoryPanel from './HistoryPanel';
+import { API_CHANGE_EVENT } from './ApiManager';
 
 function ModelComparison() {
   const [prompt, setPrompt] = useState('');
@@ -19,6 +20,8 @@ function ModelComparison() {
   const [showHistory, setShowHistory] = useState(false);
   const [deletingLogs, setDeletingLogs] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apis, setApis] = useState([]);
+  const [selectedApiId, setSelectedApiId] = useState(null);
 
   useEffect(() => {
     const fetchModels = async () => {
@@ -43,6 +46,29 @@ function ModelComparison() {
     };
 
     fetchModels();
+
+    // Add event listener for API changes
+    const handleApiChange = () => {
+      fetchModels();
+    };
+    window.addEventListener(API_CHANGE_EVENT, handleApiChange);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener(API_CHANGE_EVENT, handleApiChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    const savedApis = localStorage.getItem('apis');
+    if (savedApis) {
+      const parsedApis = JSON.parse(savedApis);
+      setApis(parsedApis);
+      const activeApi = parsedApis.find(api => api.active);
+      if (activeApi) {
+        setSelectedApiId(activeApi.id);
+      }
+    }
   }, []);
 
   const fetchLogs = async () => {
@@ -84,9 +110,12 @@ function ModelComparison() {
         setLoading(prev => ({ ...prev, [model]: true }));
       });
 
+      const activeApi = apis.find(api => api.id === selectedApiId);
+      
       const response = await axios.post('http://localhost:3001/api/chat', {
         models: selectedModels,
         prompt,
+        apiKey: activeApi?.key
       });
 	  console.log(response.data);
       const newResponses = {};

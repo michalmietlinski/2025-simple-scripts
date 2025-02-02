@@ -1,10 +1,67 @@
-textarea:disabled {
-  background-color: #f5f5f5;
-  cursor: not-allowed;
+.comparison-form {
+  background-color: var(--card-bg);
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px var(--shadow-color);
+  border: 1px solid var(--border-color);
+}
+
+.model-selection {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+}
+
+.model-option {
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.model-option:hover {
+  background-color: var(--hover-color);
+}
+
+.model-option.selected {
+  background-color: var(--primary-color-alpha);
+}
+
+textarea {
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  width: 100%;
+  padding: 12px;
+  border-radius: 4px;
+  resize: vertical;
+  min-height: 100px;
+}
+
+textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-color-alpha);
+}
+
+button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button:hover:not(:disabled) {
+  background-color: var(--primary-color-dark);
 }
 
 button:disabled {
-  opacity: 0.7;
+  background-color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+textarea:disabled {
+  background-color: #f5f5f5;
   cursor: not-allowed;
 }
 

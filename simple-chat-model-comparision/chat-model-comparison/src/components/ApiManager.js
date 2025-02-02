@@ -4,6 +4,42 @@ import './ApiManager.css';
 
 const API_CHANGE_EVENT = 'api-config-changed';
 
+const PROVIDER_INSTRUCTIONS = {
+  openai: {
+    title: "OpenAI API Key",
+    steps: [
+      "Go to platform.openai.com",
+      "Sign in or create an account",
+      "Navigate to API Keys section",
+      "Click 'Create new secret key'",
+      "Copy the key (you won't see it again!)"
+    ],
+    link: "https://platform.openai.com/api-keys"
+  },
+  anthropic: {
+    title: "Anthropic API Key",
+    steps: [
+      "Go to console.anthropic.com",
+      "Sign in or create an account",
+      "Navigate to API Keys section",
+      "Create a new API key",
+      "Copy the key starting with 'sk-ant-'"
+    ],
+    link: "https://console.anthropic.com/account/keys"
+  },
+  deepseek: {
+    title: "DeepSeek API Key",
+    steps: [
+      "Go to platform.deepseek.com",
+      "Sign in or create an account",
+      "Go to API section",
+      "Generate new API key",
+      "Copy the key"
+    ],
+    link: "https://platform.deepseek.com/"
+  }
+};
+
 function ApiManager() {
   const [apis, setApis] = useState([]);
   const [newApiKey, setNewApiKey] = useState('');
@@ -11,6 +47,7 @@ function ApiManager() {
   const [newProvider, setNewProvider] = useState('openai');
   const [newApiUrl, setNewApiUrl] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [modalProvider, setModalProvider] = useState(null);
 
   useEffect(() => {
     fetchApis();
@@ -79,13 +116,69 @@ function ApiManager() {
     <div className="api-manager">
       <div className="api-header">
         <h3>API Keys</h3>
-        <button 
-          className="add-api-button"
-          onClick={() => setIsAdding(!isAdding)}
-        >
-          {isAdding ? '−' : '+'}
-        </button>
+        <div className="api-header-controls">
+          <button 
+            className="help-icon"
+            onClick={() => setModalProvider('general')}
+          >
+            ?
+          </button>
+          <button 
+            className="add-api-button"
+            onClick={() => setIsAdding(!isAdding)}
+          >
+            {isAdding ? '−' : '+'}
+          </button>
+        </div>
       </div>
+
+      {modalProvider && (
+        <div className="modal-overlay" onClick={() => setModalProvider(null)}>
+          <div className="api-modal" onClick={e => e.stopPropagation()}>
+            <button 
+              className="modal-close"
+              onClick={() => setModalProvider(null)}
+            >
+              ×
+            </button>
+            {modalProvider === 'general' ? (
+              <>
+                <h4>Adding API Keys</h4>
+                <p>Select a provider and add your API key to enable model access. Each provider requires its own API key.</p>
+                <p>Click the + button to add a new API key.</p>
+                <div className="provider-list">
+                  {Object.entries(PROVIDER_INSTRUCTIONS).map(([key, provider]) => (
+                    <button 
+                      key={key}
+                      className="provider-button"
+                      onClick={() => setModalProvider(key)}
+                    >
+                      {provider.title} Setup →
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <h4>{PROVIDER_INSTRUCTIONS[modalProvider]?.title}</h4>
+                <ol>
+                  {PROVIDER_INSTRUCTIONS[modalProvider]?.steps.map((step, i) => (
+                    <li key={i}>{step}</li>
+                  ))}
+                </ol>
+                <a 
+                  href={PROVIDER_INSTRUCTIONS[modalProvider]?.link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="provider-link"
+                >
+                  Get API Key →
+                </a>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {isAdding && (
         <form onSubmit={addApi} className="add-api-form">
@@ -95,15 +188,26 @@ function ApiManager() {
             value={newApiName}
             onChange={(e) => setNewApiName(e.target.value)}
           />
-          <select
-            value={newProvider}
-            onChange={(e) => setNewProvider(e.target.value)}
-          >
-            <option value="openai">OpenAI</option>
-            <option value="deepseek">DeepSeek</option>
-            <option value="anthropic">Anthropic</option>
-            <option value="custom">Custom Provider</option>
-          </select>
+          <div className="select-wrapper">
+            <select
+              value={newProvider}
+              onChange={(e) => setNewProvider(e.target.value)}
+            >
+              <option value="openai">OpenAI</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="custom">Custom Provider</option>
+            </select>
+            <button 
+              className="help-icon small"
+              onClick={(e) => {
+                e.preventDefault();
+                setModalProvider(newProvider);
+              }}
+            >
+              ?
+            </button>
+          </div>
           {newProvider === 'custom' && (
             <input
               type="text"

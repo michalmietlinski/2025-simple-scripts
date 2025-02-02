@@ -37,33 +37,67 @@ function Navigation() {
 
 // Create a new component for the changelog
 function Changelog() {
+  const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchChangelog = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get('http://localhost:3001/api/changelog');
+        setEntries(response.data.entries);
+      } catch (error) {
+        console.error('Error fetching changelog:', error);
+        setError('Failed to load changelog');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChangelog();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="changelog-section">
+        <h3>Latest Updates</h3>
+        <div className="changelog-loading">Loading updates...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="changelog-section">
+        <h3>Latest Updates</h3>
+        <div className="changelog-error">{error}</div>
+      </div>
+    );
+  }
+
   return (
     <div className="changelog-section">
       <h3>Latest Updates</h3>
       <div className="changelog-entries">
-        <div className="changelog-entry">
-          <span className="changelog-date">2024-03-20</span>
-          <div className="changelog-content">
-            <p className="changelog-title">Added Multi-Provider Support</p>
-            <ul>
-              <li>Support for OpenAI, DeepSeek, and Anthropic APIs</li>
-              <li>Custom API endpoint configuration</li>
-              <li>Multiple API keys management</li>
-              <li>⚠️ DeepSeek and Anthropic integration needs testing</li>
-            </ul>
+        {entries.map((entry, index) => (
+          <div key={`${entry.date}-${index}`} className="changelog-entry">
+            <span className="changelog-date">{entry.date}</span>
+            <div className="changelog-content">
+              <p className="changelog-title">{entry.title}</p>
+              <ul>
+                {entry.items.map((item, itemIndex) => (
+                  <li 
+                    key={itemIndex}
+                    className={item.includes('⚠️') ? 'warning' : ''}
+                  >
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
-        </div>
-        <div className="changelog-entry">
-          <span className="changelog-date">2024-03-19</span>
-          <div className="changelog-content">
-            <p className="changelog-title">Initial Release</p>
-            <ul>
-              <li>Basic model comparison</li>
-              <li>Conversation threading</li>
-              <li>History management</li>
-            </ul>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );

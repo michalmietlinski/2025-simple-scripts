@@ -31,6 +31,7 @@ if (!fs.existsSync(logsDir)) {
 const THREAD_LOGS_DIR = path.join(__dirname, 'threadLogs');
 
 const API_CONFIG_PATH = path.join(__dirname, 'config', 'apis.json');
+const CHANGELOG_PATH = path.join(__dirname, 'config', 'changelog.json');
 
 const DEFAULT_PROVIDER_CONFIGS = {
   openai: {
@@ -63,12 +64,40 @@ async function ensureConfigDir() {
     await fsPromises.mkdir(configDir);
   }
   
+  // Ensure apis.json exists
   try {
     await fsPromises.access(API_CONFIG_PATH);
   } catch {
-    await fsPromises.writeFile(API_CONFIG_PATH, JSON.stringify({
-      apis: []
-    }, null, 2));
+    // Copy example file if it exists, otherwise create empty config
+    try {
+      const examplePath = path.join(configDir, 'apis.example.json');
+      await fsPromises.access(examplePath);
+      await fsPromises.copyFile(examplePath, API_CONFIG_PATH);
+      console.log('Created apis.json from example file');
+    } catch {
+      await fsPromises.writeFile(API_CONFIG_PATH, JSON.stringify({
+        apis: []
+      }, null, 2));
+      console.log('Created empty apis.json');
+    }
+  }
+  
+  // Ensure changelog.json exists
+  try {
+    await fsPromises.access(CHANGELOG_PATH);
+  } catch {
+    // Copy example file if it exists, otherwise create empty changelog
+    try {
+      const examplePath = path.join(configDir, 'changelog.example.json');
+      await fsPromises.access(examplePath);
+      await fsPromises.copyFile(examplePath, CHANGELOG_PATH);
+      console.log('Created changelog.json from example file');
+    } catch {
+      await fsPromises.writeFile(CHANGELOG_PATH, JSON.stringify({
+        entries: []
+      }, null, 2));
+      console.log('Created empty changelog.json');
+    }
   }
 }
 
@@ -567,6 +596,16 @@ app.patch('/api/provider-apis/:id', async (req, res) => {
     res.json(config.apis.find(api => api.id === parseInt(id)));
   } catch (error) {
     console.error('Error updating API:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/changelog', async (req, res) => {
+  try {
+    const changelog = JSON.parse(await fsPromises.readFile(CHANGELOG_PATH, 'utf-8'));
+    res.json(changelog);
+  } catch (error) {
+    console.error('Error reading changelog:', error);
     res.status(500).json({ error: error.message });
   }
 });

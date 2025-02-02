@@ -1,0 +1,34 @@
+{
+  "entries": [
+    {
+      "date": "2024-03-20",
+      "title": "Added Multi-Provider Support",
+      "items": [
+        "Support for OpenAI, DeepSeek, and Anthropic APIs",
+        "Custom API endpoint configuration",
+        "Multiple API keys management",
+        "⚠️ DeepSeek and Anthropic integration needs testing"
+      ]
+    },
+    {
+      "date": "2024-03-20",
+      "title": "UI/UX Improvements",
+      "items": [
+        "Added interactive help system for API setup",
+        "Improved navigation with active page highlighting",
+        "Added changelog section to track updates",
+        "Enhanced API key management interface"
+      ]
+    },
+    {
+      "date": "2024-03-19",
+      "title": "Initial Release",
+      "items": [
+        "Basic model comparison",
+        "Conversation threading",
+        "History management",
+        "Response logging system"
+      ]
+    }
+  ]
+}

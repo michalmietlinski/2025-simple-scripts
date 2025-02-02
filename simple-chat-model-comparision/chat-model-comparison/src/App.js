@@ -4,6 +4,7 @@ import axios from 'axios';
 import ModelComparison from './components/ModelComparison';
 import ThreadedComparison from './components/ThreadedComparison';
 import ApiManager from './components/ApiManager';
+import ThemeToggle from './components/ThemeToggle';
 import './App.css';
 
 // Create a new component for the navigation
@@ -109,11 +110,23 @@ function App() {
     openai: 'checking' 
   });
 
+  const [isDarkMode, setIsDarkMode] = useState(
+    localStorage.getItem('theme') === 'dark'
+  );
+
   useEffect(() => {
     checkHealth();
     const interval = setInterval(checkHealth, 30000); 
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      'data-theme',
+      isDarkMode ? 'dark' : 'light'
+    );
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
 
   const checkHealth = async () => {
     try {
@@ -141,10 +154,18 @@ function App() {
     }
   };
 
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
+  };
+
   return (
     <BrowserRouter>
       <div className="app-container">
         <nav className="sidebar">
+		<ThemeToggle 
+            isDark={isDarkMode} 
+            onToggle={toggleTheme}
+          />
           <div className="status-indicators">
             <div className={`status-item ${healthStatus.server}`}>
               <span className="status-dot"></span>
@@ -183,6 +204,8 @@ function App() {
           </div>
 
           <Changelog />
+
+       
         </nav>
         <main className="main-content">
           <Routes>

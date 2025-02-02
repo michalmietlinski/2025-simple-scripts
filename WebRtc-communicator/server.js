@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
 const crypto = require('crypto');
+const multer = require('multer');
 
 const app = express();
 const port = 3000;
@@ -19,6 +20,20 @@ const activeUsers = new Map();
 // File storage structure
 const DATA_DIR = 'userdata';
 fs.mkdirSync(DATA_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const { username, conversationId } = req.params;
+        const dir = path.join(DATA_DIR, username, conversationId, 'files');
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        cb(null, `${Date.now()}-${file.originalname}`);
+    }
+});
+
+const upload = multer({ storage });
 
 // Routes
 app.post('/api/user/register', (req, res) => {
@@ -145,6 +160,56 @@ app.get('/api/conversations/:username', (req, res) => {
         res.json({ success: true, conversations });
     } catch (err) {
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Add file endpoints
+app.post('/api/files/:username/:conversationId/upload', upload.single('file'), (req, res) => {
+    try {
+        const fileInfo = {
+            id: crypto.randomUUID(),
+            name: req.file.originalname,
+            path: req.file.filename,
+            size: req.file.size,
+            timestamp: Date.now(),
+            sender: req.body.sender
+        };
+        
+        const metadataPath = path.join(
+            DATA_DIR, 
+            req.params.username, 
+            req.params.conversationId, 
+            'files.json'
+        );
+        
+        let files = [];
+        if (fs.existsSync(metadataPath)) {
+            files = JSON.parse(fs.readFileSync(metadataPath));
+        }
+        
+        files.push(fileInfo);
+        fs.writeFileSync(metadataPath, JSON.stringify(files, null, 2));
+        
+        res.json({ success: true, file: fileInfo });
+    } catch (error) {
+        console.error('File upload error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/files/:username/:conversationId/download/:filename', (req, res) => {
+    const filePath = path.join(
+        DATA_DIR, 
+        req.params.username, 
+        req.params.conversationId, 
+        'files',
+        req.params.filename
+    );
+    
+    if (fs.existsSync(filePath)) {
+        res.download(filePath);
+    } else {
+        res.status(404).json({ success: false, error: 'File not found' });
     }
 });
 

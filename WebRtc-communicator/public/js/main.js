@@ -165,6 +165,78 @@ const MessageHandler = {
         if (shouldSave) {
             await this.save(AppState.connection.currentPeer, messageData);
         }
+    },
+
+    async handleFileUpload(file) {
+        try {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const fileData = {
+                    type: 'file_share',
+                    sender: AppState.user,
+                    file: {
+                        name: file.name,
+                        type: file.type,
+                        size: file.size,
+                        data: e.target.result,
+                        id: AppState.messages.generateId()
+                    },
+                    timestamp: Date.now()
+                };
+
+                // Save file reference in conversation
+                await this.save(AppState.connection.currentPeer, {
+                    type: 'file_share',
+                    sender: AppState.user,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileId: fileData.file.id,
+                    timestamp: fileData.timestamp
+                });
+
+                // Add file UI elements
+                await this.addToChat(`Shared file: ${file.name}`, AppState.user, false);
+                this.addFileMessage(fileData.file, AppState.user);
+
+                // Send file through WebRTC
+                if (AppState.connection.dataChannel?.readyState === 'open') {
+                    AppState.connection.dataChannel.send(JSON.stringify(fileData));
+                }
+            };
+            reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('File handling failed:', error);
+            UI.updateStatus('Failed to process file');
+        }
+    },
+
+    addFileMessage(fileInfo, sender) {
+        // Add file share message to chat history
+        const messageElement = document.createElement('div');
+        messageElement.className = `message system`;
+        messageElement.textContent = `${sender} shared file: ${fileInfo.name}`;
+        UI.elements.messagesContainer.appendChild(messageElement);
+
+        // Add file download element
+        const fileElement = document.createElement('div');
+        fileElement.className = `message file ${sender === AppState.user ? 'sent' : 'received'}`;
+        fileElement.innerHTML = `
+            <div class="file-info">
+                <span>📎 ${fileInfo.name} (${this.formatFileSize(fileInfo.size)})</span>
+                <button class="file-download" onclick="downloadFileFromData('${fileInfo.id}', '${fileInfo.data || ''}', '${fileInfo.name}')">
+                    Download
+                </button>
+            </div>
+        `;
+        
+        UI.elements.messagesContainer.appendChild(fileElement);
+        UI.elements.messagesContainer.scrollTop = UI.elements.messagesContainer.scrollHeight;
+    },
+
+    formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / 1048576).toFixed(1) + ' MB';
     }
 };
 
@@ -294,6 +366,24 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.elements.messageInput?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleSendMessage();
     });
+
+    // Add file input handler
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput) {
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                await MessageHandler.handleFileUpload(file);
+            }
+            e.target.value = ''; // Reset input
+        });
+    }
+
+    // Add file button handler
+    const fileButton = document.querySelector('.file-button');
+    if (fileButton) {
+        fileButton.onclick = () => document.getElementById('fileInput').click();
+    }
 });
 
 // Connection management
@@ -330,12 +420,23 @@ async function loadConversationHistory(peerId) {
         
         if (response.success && response.messages) {
             UI.elements.messagesContainer.innerHTML = '';
-            MessageHandler.sentMessages.clear(); // Clear tracked messages before loading history
+            MessageHandler.sentMessages.clear();
             
             response.messages.forEach(msg => {
                 const messageId = MessageHandler.getMessageId(msg);
                 MessageHandler.sentMessages.add(messageId);
-                MessageHandler.addToChat(msg.message, msg.sender, false);
+                
+                // Handle file messages differently
+                if (msg.type === 'file_share') {
+                    MessageHandler.addToChat(`Shared file: ${msg.fileName}`, msg.sender, false);
+                    MessageHandler.addFileMessage({
+                        name: msg.fileName,
+                        path: msg.fileId,
+                        size: msg.fileSize
+                    }, msg.sender);
+                } else {
+                    MessageHandler.addToChat(msg.message, msg.sender, false);
+                }
             });
         }
     } catch (error) {
@@ -516,6 +617,15 @@ function setupDataChannelHandlers(channel) {
                     await mergeMessages(messageData.messages);
                     break;
                     
+                case 'file_share':
+                    // Add file share message to chat
+                    await MessageHandler.addToChat(
+                        `Shared file: ${messageData.file.name}`, 
+                        messageData.sender
+                    );
+                    MessageHandler.addFileMessage(messageData.file, messageData.sender);
+                    break;
+                    
                 default:
                     console.warn('Unknown message type:', messageData.type);
             }
@@ -640,3 +750,23 @@ async function mergeMessages(remoteMessages) {
         UI.updateStatus('Failed to sync messages');
     }
 }
+
+// Update file download function
+window.downloadFileFromData = function(fileId, data, fileName) {
+    try {
+        if (!data) {
+            UI.updateStatus('File data not available');
+            return;
+        }
+
+        const link = document.createElement('a');
+        link.href = data;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (error) {
+        console.error('File download failed:', error);
+        UI.updateStatus('Failed to download file');
+    }
+};

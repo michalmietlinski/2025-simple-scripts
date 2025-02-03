@@ -4,10 +4,11 @@ import { UI } from './ui.js';
 import { ApiService } from './api.js';
 import { MessageHandler } from './message.js';
 import { mergeMessages, loadConversationHistory } from './conversation.js';
+import { DomUtils, JsonUtils, ErrorUtils } from './utils.js';
 
 // Connection management
 export async function connect() {
-    const peerId = document.getElementById('peerId').value.trim();
+    const peerId = DomUtils.getValue('peerId');
     if (!peerId || peerId === AppState.user) {
         UI.updateStatus('Invalid peer ID');
         return;
@@ -27,14 +28,18 @@ export async function connect() {
         await loadConversationHistory(conversationId);
         UI.toggleVisibility('chatPanel', true);
     } catch (error) {
-        console.error('Connection failed:', error);
-        UI.updateStatus('Failed to establish connection');
+        const { message } = ErrorUtils.handleError(error, 'connect', 'Failed to establish connection');
+        UI.updateStatus(message);
     }
 }
 
 export async function handleOffer(connectionData) {
     try {
-        const data = JSON.parse(connectionData);
+        const { data, error } = JsonUtils.safeParseJson(connectionData);
+        if (error) {
+            throw error;
+        }
+
         UI.updateStatus('Processing connection...');
         
         if (data.type === 'answer') {
@@ -79,7 +84,8 @@ export async function handleOffer(connectionData) {
                     userId: AppState.user,
                     peerId: AppState.connection.peerUsername
                 };
-                document.getElementById('connectionInfoDisplay').value = JSON.stringify(fullAnswer);
+                const { data: jsonData } = JsonUtils.safeStringifyJson(fullAnswer);
+                DomUtils.setValue('connectionInfoDisplay', jsonData);
                 UI.toggleVisibility('connectionInfo', true);
                 UI.updateStatus('Share the answer with the other peer');
             }
@@ -89,8 +95,8 @@ export async function handleOffer(connectionData) {
         UI.toggleVisibility('chatPanel', true);
         
     } catch (error) {
-        console.error('Error handling connection data:', error);
-        UI.updateStatus('Connection failed');
+        const { message } = ErrorUtils.handleError(error, 'handleOffer', 'Failed to establish connection');
+        UI.updateStatus(message);
     }
 }
 
@@ -108,8 +114,8 @@ export const ConnectionHandler = {
             await AppState.connection.rtc.setLocalDescription(offer);
             UI.updateStatus('Gathering connection info...');
         } catch (error) {
-            console.error('Connection initialization failed:', error);
-            UI.updateStatus('Connection failed');
+            const { message } = ErrorUtils.handleError(error, 'initialize', 'Connection initialization failed');
+            UI.updateStatus(message);
         }
     },
 
@@ -135,12 +141,13 @@ export const ConnectionHandler = {
                 peerId: AppState.connection.peerUsername
             };
             
-            document.getElementById('connectionInfoDisplay').value = JSON.stringify(fullOffer);
+            const { data: jsonData } = JsonUtils.safeStringifyJson(fullOffer);
+            DomUtils.setValue('connectionInfoDisplay', jsonData);
             UI.toggleVisibility('connectionInfo', true);
             UI.updateStatus('Ready to connect. Share the connection info.');
         } catch (error) {
-            console.error('Error creating offer:', error);
-            UI.updateStatus('Failed to create connection info');
+            const { message } = ErrorUtils.handleError(error, 'createFullOffer', 'Failed to create connection info');
+            UI.updateStatus(message);
         }
     },
 

@@ -2,6 +2,7 @@ import { AppState } from './state.js';
 import { CONFIG } from './config.js';
 import { UI } from './ui.js';
 import { ApiService } from './api.js';
+import { FileUtils, JsonUtils, ErrorUtils } from './utils.js';
 
 // Message handling
 export const MessageHandler = {
@@ -143,7 +144,7 @@ export const MessageHandler = {
         fileElement.className = `message file ${sender === AppState.user ? 'sent' : 'received'}`;
         fileElement.innerHTML = `
             <div class="file-info">
-                <span>📎 ${fileInfo.name} (${this.formatFileSize(fileInfo.size)})</span>
+                <span>📎 ${fileInfo.name} (${FileUtils.formatSize(fileInfo.size)})</span>
                 <button class="file-download" onclick="downloadFileFromData('${fileInfo.id}', '${fileInfo.data || ''}', '${fileInfo.name}')">
                     Download
                 </button>
@@ -187,7 +188,11 @@ export async function handleSendMessage() {
     // Try to send message
     try {
         if (AppState.connection.dataChannel?.readyState === 'open') {
-            AppState.connection.dataChannel.send(JSON.stringify(messageData));
+            const { data, error } = JsonUtils.safeStringifyJson(messageData);
+            if (error) {
+                throw error;
+            }
+            AppState.connection.dataChannel.send(data);
         } else {
             const offlineMessages = AppState.messages.offline;
             if (!offlineMessages.has(AppState.connection.currentPeer)) {
@@ -197,7 +202,7 @@ export async function handleSendMessage() {
             UI.updateStatus('Message saved (offline)');
         }
     } catch (error) {
-        console.error('Error sending message:', error);
-        UI.updateStatus('Failed to send message');
+        const { message } = ErrorUtils.handleError(error, 'handleSendMessage', 'Failed to send message');
+        UI.updateStatus(message);
     }
 } 

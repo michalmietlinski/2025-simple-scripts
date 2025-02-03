@@ -58,7 +58,7 @@
         }
         
         #statusPanel.visible {
-            display: block;
+            display: block !important;
         }
         
         .conversation-item {
@@ -151,6 +151,28 @@
         .file-download:hover {
             background: #43a047;
         }
+        
+        .pending-sync {
+            color: #ff9800;
+            margin-left: 5px;
+            font-size: 0.8em;
+        }
+        
+        .conversation-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
+        }
+        
+        .sync-status {
+            font-size: 0.8em;
+            color: #666;
+        }
+        
+        .sync-status.pending {
+            color: #ff9800;
+        }
     </style>
 </head>
 <body>
@@ -201,20 +223,29 @@
         </div>
     </div>
 
-    <div id="chatPanel" class="hidden">
-        <div id="messages" style="height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0;"></div>
-        <div id="chatControls">
-            <div class="message-input-group">
-                <input type="text" id="messageInput" placeholder="Type a message..." />
-                <button onclick="document.getElementById('fileInput').click()" class="file-button">
-                    📎
-                </button>
-                <input type="file" id="fileInput" style="display: none" />
+    <div id="chat-container">
+        <div id="messages-container"></div>
+        <div id="files-panel">
+            <h3>Files</h3>
+            <div id="files-list"></div>
+        </div>
+    </div>
+    <div id="input-container">
+        <div id="chatPanel" class="hidden">
+            <div id="messages" style="height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin: 10px 0;"></div>
+            <div id="chatControls">
+                <div class="message-input-group">
+                    <input type="text" id="messageInput" placeholder="Type a message..." />
+                    <button onclick="document.getElementById('fileInput').click()" class="file-button">
+                        📎
+                    </button>
+                    <input type="file" id="fileInput" style="display: none" />
+                </div>
+                <button onclick="sendMessage()">Send</button>
             </div>
-            <button onclick="sendMessage()">Send</button>
         </div>
     </div>
 
-    <script src="js/main.js" defer></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html> 

@@ -199,13 +199,14 @@ export function setupDataChannelHandlers(channel) {
                 }));
             }
         } catch (error) {
-            console.error('Error in channel open handler:', error);
+            ErrorUtils.handleError(error, 'channel.onopen');
         }
     };
 
     channel.onmessage = async event => {
         try {
-            const messageData = JSON.parse(event.data);
+            const { data: messageData, error } = JsonUtils.safeParseJson(event.data);
+            if (error) throw error;
             
             switch (messageData.type) {
                 case 'message':
@@ -216,7 +217,14 @@ export function setupDataChannelHandlers(channel) {
                     });
                     
                     if (!MessageHandler.sentMessages.has(messageId)) {
-                        MessageHandler.addToChat(messageData.content, messageData.sender);
+                        // Save the message first
+                        await MessageHandler.save(AppState.connection.currentPeer, {
+                            sender: messageData.sender,
+                            message: messageData.content,
+                            timestamp: messageData.timestamp
+                        });
+                        // Then display it
+                        MessageHandler.addToChat(messageData.content, messageData.sender, false);
                     }
                     break;
                     
@@ -238,10 +246,20 @@ export function setupDataChannelHandlers(channel) {
                     break;
                     
                 case 'file_share':
-                    // Add file share message to chat
+                    // Save file message first
+                    await MessageHandler.save(AppState.connection.currentPeer, {
+                        type: 'file_share',
+                        sender: messageData.sender,
+                        fileName: messageData.file.name,
+                        fileSize: messageData.file.size,
+                        fileId: messageData.file.id,
+                        timestamp: messageData.timestamp
+                    });
+                    // Then display it
                     await MessageHandler.addToChat(
                         `Shared file: ${messageData.file.name}`, 
-                        messageData.sender
+                        messageData.sender,
+                        false
                     );
                     MessageHandler.addFileMessage(messageData.file, messageData.sender);
                     break;
@@ -250,12 +268,12 @@ export function setupDataChannelHandlers(channel) {
                     console.warn('Unknown message type:', messageData.type);
             }
         } catch (error) {
-            console.error('Error handling message:', error);
+            ErrorUtils.handleError(error, 'channel.onmessage');
         }
     };
 
     channel.onerror = (error) => {
-        console.error('Data channel error:', error);
+        ErrorUtils.handleError(error, 'channel.onerror');
         UI.updateStatus('Connection error');
     };
 

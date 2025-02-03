@@ -3,6 +3,32 @@ import { CONFIG } from './config.js';
 import { UI } from './ui.js';
 import { ApiService } from './api.js';
 import { MessageHandler } from './message.js';
+import { ErrorUtils } from './utils.js';
+
+// Helper function to get message signature for deduplication
+function getMessageSignature(msg) {
+    if (msg.type === 'file_share') {
+        return `${msg.timestamp}-${msg.fileName}`;
+    }
+    return `${msg.timestamp}-${msg.message || msg.content}`;
+}
+
+// Helper function to clean up duplicates
+function removeDuplicateMessages(messages) {
+    const uniqueMessages = new Map();
+    const signatures = new Set();
+
+    messages.forEach(msg => {
+        const signature = getMessageSignature(msg);
+        if (!signatures.has(signature)) {
+            signatures.add(signature);
+            uniqueMessages.set(signature, msg);
+        }
+    });
+
+    return Array.from(uniqueMessages.values())
+        .sort((a, b) => a.timestamp - b.timestamp);
+}
 
 export async function loadConversationHistory(peerId) {
     try {
@@ -10,10 +36,18 @@ export async function loadConversationHistory(peerId) {
         const response = await ApiService.get(CONFIG.api.endpoints.getConversation(AppState.user, conversationId));
         
         if (response.success && response.messages) {
+            // Clean up duplicates before displaying
+            const cleanMessages = removeDuplicateMessages(response.messages);
+            
+            // Save cleaned up messages if we removed any duplicates
+            if (cleanMessages.length < response.messages.length) {
+                await MessageHandler.save(conversationId, cleanMessages, true);
+            }
+
             UI.elements.messagesContainer.innerHTML = '';
             MessageHandler.sentMessages.clear();
             
-            response.messages.forEach(msg => {
+            cleanMessages.forEach(msg => {
                 const messageId = MessageHandler.getMessageId(msg);
                 MessageHandler.sentMessages.add(messageId);
                 
@@ -31,8 +65,8 @@ export async function loadConversationHistory(peerId) {
             });
         }
     } catch (error) {
-        console.error('Error loading conversation:', error);
-        UI.updateStatus('Failed to load conversation');
+        const { message } = ErrorUtils.handleError(error, 'loadConversationHistory', 'Failed to load conversation');
+        UI.updateStatus(message);
     }
 }
 
@@ -102,23 +136,29 @@ export async function mergeMessages(remoteMessages) {
         );
         const localMessages = response.success ? response.messages : [];
 
+        // Clean up duplicates in both local and remote messages first
+        const cleanLocalMessages = removeDuplicateMessages(localMessages);
+        const cleanRemoteMessages = removeDuplicateMessages(remoteMessages);
+
+        // Merge cleaned messages
         const uniqueMessages = new Map();
-        const seenMessageIds = new Set();
+        const signatures = new Set();
         
-        // Process both local and remote messages
-        [...localMessages, ...remoteMessages].forEach(msg => {
-            const messageId = MessageHandler.getMessageId(msg);
-            if (!seenMessageIds.has(messageId)) {
-                uniqueMessages.set(messageId, msg);
-                seenMessageIds.add(messageId);
+        [...cleanLocalMessages, ...cleanRemoteMessages].forEach(msg => {
+            const signature = getMessageSignature(msg);
+            if (!signatures.has(signature)) {
+                signatures.add(signature);
+                uniqueMessages.set(signature, msg);
             }
         });
 
         const mergedMessages = Array.from(uniqueMessages.values())
             .sort((a, b) => a.timestamp - b.timestamp);
 
-        // Save merged messages
-        await MessageHandler.save(AppState.connection.currentPeer, mergedMessages, true);
+        // Save if we have new messages or removed duplicates
+        if (mergedMessages.length !== localMessages.length) {
+            await MessageHandler.save(AppState.connection.currentPeer, mergedMessages, true);
+        }
         
         // Clear and reload the chat
         UI.elements.messagesContainer.innerHTML = '';
@@ -127,10 +167,19 @@ export async function mergeMessages(remoteMessages) {
         mergedMessages.forEach(msg => {
             const messageId = MessageHandler.getMessageId(msg);
             MessageHandler.sentMessages.add(messageId);
-            MessageHandler.addToChat(msg.message, msg.sender, false);
+            if (msg.type === 'file_share') {
+                MessageHandler.addToChat(`Shared file: ${msg.fileName}`, msg.sender, false);
+                MessageHandler.addFileMessage({
+                    name: msg.fileName,
+                    path: msg.fileId,
+                    size: msg.fileSize
+                }, msg.sender);
+            } else {
+                MessageHandler.addToChat(msg.message || msg.content, msg.sender, false);
+            }
         });
     } catch (error) {
-        console.error('Error merging messages:', error);
-        UI.updateStatus('Failed to sync messages');
+        const { message } = ErrorUtils.handleError(error, 'mergeMessages', 'Failed to sync messages');
+        UI.updateStatus(message);
     }
 } 

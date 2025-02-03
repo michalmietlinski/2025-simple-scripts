@@ -10,6 +10,9 @@ export const MessageHandler = {
     },
 
     getMessageHash(msg) {
+        if (msg.type === 'file_share') {
+            return `${msg.sender}-${msg.timestamp}-${msg.fileName}`;
+        }
         return `${msg.sender}-${msg.timestamp}-${msg.message}`;
     },
 
@@ -28,13 +31,11 @@ export const MessageHandler = {
                 throw new Error('Invalid conversation ID');
             }
 
-            if (!overwrite) {
-                const messageId = this.getMessageId(messageData);
-                if (this.sentMessages.has(messageId)) {
-                    return;
-                }
-                this.sentMessages.add(messageId);
+            const messageHash = this.getMessageHash(messageData);
+            if (!overwrite && this.sentMessages.has(messageHash)) {
+                return;
             }
+            this.sentMessages.add(messageHash);
             
             if (!messageData.id) {
                 messageData.id = AppState.messages.generateId();
@@ -68,7 +69,7 @@ export const MessageHandler = {
 
         const messageElement = document.createElement('div');
         messageElement.className = `message ${sender === AppState.user ? 'sent' : 'received'}`;
-        messageElement.setAttribute('data-message-id', this.getMessageId(messageData));
+        messageElement.setAttribute('data-message-id', messageData.id);
         messageElement.innerHTML = `
             ${sender}: ${message}
             ${!messageData.synced ? '<span class="pending-sync">⌛</span>' : ''}
@@ -86,6 +87,82 @@ export const MessageHandler = {
         }
 
         return messageData;
+    },
+
+    async markMessageAsSynced(messageId) {
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const syncIcon = messageElement.querySelector('.pending-sync');
+            if (syncIcon) {
+                syncIcon.remove();
+            }
+        }
+
+        // Update message in storage
+        const conversationId = AppState.messages.getConversationId(
+            AppState.user,
+            AppState.connection.currentPeer || AppState.connection.peerUsername
+        );
+
+        if (!conversationId) return;
+
+        try {
+            const response = await ApiService.get(CONFIG.api.endpoints.getConversation(AppState.user, conversationId));
+            if (response.success) {
+                const messages = response.messages.map(msg => {
+                    if (msg.id === messageId) {
+                        return { ...msg, synced: true };
+                    }
+                    return msg;
+                });
+
+                await ApiService.post(CONFIG.api.endpoints.saveChatMessage, {
+                    username: AppState.user,
+                    peerId: conversationId,
+                    data: messages,
+                    overwrite: true
+                });
+
+                // Remove from pending sync if no more unsynced messages
+                const hasUnsynced = messages.some(msg => !msg.synced);
+                if (!hasUnsynced) {
+                    AppState.messages.pendingSync.delete(conversationId);
+                    this.updateConversationStatus(conversationId);
+                }
+            }
+        } catch (error) {
+            console.error('Error updating message sync status:', error);
+        }
+    },
+
+    async handleMessageSync(messageData) {
+        if (messageData.type === 'message_ack') {
+            await this.markMessageAsSynced(messageData.messageId);
+            return;
+        }
+
+        // For received messages, send acknowledgment
+        const ack = {
+            type: 'message_ack',
+            messageId: messageData.id,
+            sender: AppState.user
+        };
+
+        if (AppState.connection.dataChannel?.readyState === 'open') {
+            AppState.connection.dataChannel.send(JSON.stringify(ack));
+        }
+
+        // Check if we already have this message
+        const messageHash = this.getMessageHash(messageData);
+        if (this.sentMessages.has(messageHash)) {
+            return;
+        }
+
+        // Save received message as already synced
+        await this.save(AppState.connection.currentPeer, {
+            ...messageData,
+            synced: true
+        });
     },
 
     async handleFileUpload(file) {
@@ -111,22 +188,23 @@ export const MessageHandler = {
                 type: 'file_share',
                 sender: AppState.user,
                 file: result.file,
-                timestamp: Date.now()
-            };
-
-            await this.save(AppState.connection.currentPeer, {
-                type: 'file_share',
-                sender: AppState.user,
+                timestamp: Date.now(),
+                id: AppState.messages.generateId(),
                 fileName: file.name,
                 fileSize: file.size,
                 fileId: result.file.id,
                 filePath: result.file.path,
-                timestamp: fileData.timestamp
-            });
+                synced: !!AppState.connection.dataChannel?.readyState === 'open'
+            };
 
+            // Save message once
+            await this.save(AppState.connection.currentPeer, fileData);
+
+            // Update UI
             await this.addToChat(`Shared file: ${file.name}`, AppState.user, false);
-            this.addFileMessage(result.file, AppState.user);
+            await this.addFileMessage(result.file, AppState.user, false);
 
+            // Send to peer if connected
             if (AppState.connection.dataChannel?.readyState === 'open') {
                 AppState.connection.dataChannel.send(JSON.stringify(fileData));
             }
@@ -136,7 +214,7 @@ export const MessageHandler = {
         }
     },
 
-    async addFileMessage(fileInfo, sender) {
+    async addFileMessage(fileInfo, sender, shouldSave = true) {
         const messageElement = document.createElement('div');
         messageElement.className = `message system`;
         messageElement.textContent = `${sender} shared file: ${fileInfo.name}`;
@@ -146,7 +224,8 @@ export const MessageHandler = {
         fileElement.className = `message file ${sender === AppState.user ? 'sent' : 'received'}`;
         
         const conversationId = AppState.messages.getConversationId(AppState.user, AppState.connection.peerUsername);
-        const downloadUrl = `${CONFIG.api.base}${CONFIG.api.endpoints.downloadFile(sender, conversationId, fileInfo.path)}`;
+        const fileName = fileInfo.filePath || fileInfo.path || fileInfo.name;
+        const downloadUrl = `${CONFIG.api.base}${CONFIG.api.endpoints.downloadFile(sender, conversationId, fileName)}`;
         
         fileElement.innerHTML = `
             <div class="file-info">

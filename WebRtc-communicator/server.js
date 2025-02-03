@@ -50,17 +50,50 @@ app.post('/api/user/register', (req, res) => {
 });
 
 // Add helper function for message deduplication
+function getMessageKey(msg) {
+    if (msg.type === 'file_share') {
+        return `${msg.sender}-${msg.timestamp}-${msg.fileName}`;
+    }
+    return `${msg.sender}-${msg.timestamp}-${msg.message}`;
+}
+
 function deduplicateMessages(messages) {
     const uniqueMessages = new Map();
+    const contentMap = new Map();
     
+    // First pass - group by content
     messages.forEach(msg => {
-        const messageId = msg.id || `${msg.sender}-${msg.timestamp}-${msg.message}`;
-        if (!uniqueMessages.has(messageId) || msg.id) {
-            uniqueMessages.set(messageId, {
-                ...msg,
-                id: msg.id || crypto.randomUUID()
-            });
+        const contentKey = getMessageKey(msg);
+        if (!contentMap.has(contentKey)) {
+            contentMap.set(contentKey, []);
         }
+        contentMap.get(contentKey).push(msg);
+    });
+    
+    // Second pass - select best message from each group
+    contentMap.forEach((duplicates, contentKey) => {
+        let bestMessage = duplicates[0];
+        
+        // Prefer synced messages
+        const syncedMsg = duplicates.find(m => m.synced);
+        if (syncedMsg) {
+            bestMessage = syncedMsg;
+        }
+        
+        // Prefer messages with IDs
+        const msgWithId = duplicates.find(m => m.id);
+        if (msgWithId) {
+            bestMessage = {
+                ...bestMessage,
+                id: msgWithId.id
+            };
+        }
+        
+        uniqueMessages.set(contentKey, {
+            ...bestMessage,
+            id: bestMessage.id || crypto.randomUUID(),
+            synced: bestMessage.synced || duplicates.some(m => m.synced)
+        });
     });
     
     return Array.from(uniqueMessages.values())
@@ -243,22 +276,11 @@ app.get('/api/files/:username/:conversationId/list', (req, res) => {
     }
 });
 
-// Add cleanup helper
-function cleanupConversationHistory(messages) {
-    const uniqueMessages = new Map();
-    messages.forEach(msg => {
-        const messageId = msg.id || `${msg.sender}-${msg.timestamp}-${msg.message}`;
-        if (!uniqueMessages.has(messageId) || msg.id) {
-            uniqueMessages.set(messageId, msg);
-        }
-    });
-    return Array.from(uniqueMessages.values()).sort((a, b) => a.timestamp - b.timestamp);
-}
-
 function cleanupAllConversations() {
     try {
         const users = fs.readdirSync(DATA_DIR);
         let cleanedCount = 0;
+        let totalDuplicates = 0;
         
         users.forEach(username => {
             const userDir = path.join(DATA_DIR, username);
@@ -268,17 +290,19 @@ function cleanupAllConversations() {
                 if (file.endsWith('.json') && isValidConversationId(file.replace('.json', ''))) {
                     const filePath = path.join(userDir, file);
                     const messages = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-                    const cleanedMessages = cleanupConversationHistory(messages);
+                    const cleanedMessages = deduplicateMessages(messages);
                     
-                    if (cleanedMessages.length !== messages.length) {
-                        fs.writeFileSync(filePath, JSON.stringify(cleanedMessages, null, 2));
+                    const duplicatesRemoved = messages.length - cleanedMessages.length;
+                    if (duplicatesRemoved > 0) {
                         cleanedCount++;
+                        totalDuplicates += duplicatesRemoved;
+                        fs.writeFileSync(filePath, JSON.stringify(cleanedMessages, null, 2));
                     }
                 }
             });
         });
         
-        console.log(`Cleaned up ${cleanedCount} conversation files`);
+        console.log(`Cleaned up ${cleanedCount} conversation files, removed ${totalDuplicates} duplicates`);
     } catch (error) {
         console.error('Error during conversation cleanup:', error);
     }

@@ -1,173 +1,122 @@
-# MIDI Functions
+# MIDI Keyboard Shortcuts
 
-A Node.js library for handling MIDI input/output with support for both WebMIDI API and Serial MIDI connections.
+A simple Node.js script for handling MIDI input from my keyboard and converting it to system keyboard shortcuts. Perfect for testing different approaches to MIDI input handling and automation.
 
-## MIDI Protocol Specifications
+## Features
 
-### Message Structure
-Each MIDI message consists of:
-- **Status Byte** (1st byte)
-  - Bits 7-4: Command type
-  - Bits 3-0: Channel number (0-15)
-- **Data Bytes** (0-2 bytes depending on message type)
-  - Each data byte uses 7 bits (0-127)
-  - Bit 7 is always 0 in data bytes
-
-### MIDI Command Types
-
-| Command | Hex | Binary | Description | Data Bytes |
-|---------|-----|--------|-------------|------------|
-| Note Off | 0x80 | 1000xxxx | Note released | note (0-127), velocity (0-127) |
-| Note On | 0x90 | 1001xxxx | Note pressed | note (0-127), velocity (0-127) |
-| Poly Aftertouch | 0xA0 | 1010xxxx | Per-note pressure | note (0-127), pressure (0-127) |
-| Control Change | 0xB0 | 1011xxxx | Controller value | controller (0-127), value (0-127) |
-| Program Change | 0xC0 | 1100xxxx | Program/patch select | program (0-127) |
-| Channel Aftertouch | 0xD0 | 1101xxxx | Channel pressure | pressure (0-127) |
-| Pitch Bend | 0xE0 | 1110xxxx | Pitch wheel | LSB (0-127), MSB (0-127) |
-| System Message | 0xF0 | 1111xxxx | System-specific | Variable |
-
-### Common Control Change (CC) Numbers
-
-| CC Number | Description |
-|-----------|-------------|
-| 0 | Bank Select (MSB) |
-| 1 | Modulation Wheel |
-| 7 | Volume |
-| 10 | Pan |
-| 11 | Expression |
-| 64 | Sustain Pedal |
-| 65 | Portamento On/Off |
-| 71 | Resonance |
-| 74 | Cutoff Frequency |
-
-### Note Numbers
-
-| Note Number | Note Name | Frequency (Hz) |
-|------------|-----------|----------------|
-| 60 | Middle C (C4) | 261.63 |
-| 69 | A4 | 440.00 |
-| 72 | C5 | 523.25 |
+### Keyboard Shortcuts
+- **Note 48**: Ctrl+A (Select All)
+- **Note 49**: Alt+Shift+C
+- **Note 50**: Ctrl+C (Copy)
+- **Note 51**: Ctrl+X (Cut)
+- **Note 52**: Ctrl+V (Paste)
+- **Note 72**: Left Arrow
+- **Note 73/75**: Up Arrow
+- **Note 74**: Down Arrow
+- **Note 76**: Right Arrow
+- **Note 77**: Space
+- **Note 79**: Enter
 
 ## Installation
 
+1. Install Node.js (v20.10.0 or later recommended)
+2. Clone this repository
+3. Install dependencies:
 ```bash
 npm install
 ```
 
 ## Usage
 
-### Basic Usage
-
-```javascript
-const WebMidiHandler = require('./lib/webMidiHandler');
-const SerialMidiHandler = require('./lib/serialMidiHandler');
-
-// Create handler instance
-const midi = new WebMidiHandler();
-
-// Initialize and connect
-await midi.init();
-const devices = midi.listDevices();
-
-// Set up message handler
-midi.onMessage((message) => {
-    console.log('Received:', message);
-});
-
-// Connect to first available device
-await midi.connect(0);
+Start the script:
+```bash
+npm start
 ```
 
-### Message Types
+The script will:
+1. List available MIDI devices
+2. Let you select a device (or automatically connect if only one is available)
+3. Start listening for MIDI input
+4. Convert MIDI notes to keyboard shortcuts
 
-#### Note Message
-```javascript
-{
-    type: 'noteOn',  // or 'noteOff'
-    channel: 0-15,
-    note: 0-127,     // 60 = middle C
-    velocity: 0-127  // 0 = off, 127 = max
-}
-```
+## Requirements
+- Node.js
+- A MIDI keyboard/controller
+- Windows 10 (tested on 10.0.19045)
 
-#### Control Change
-```javascript
-{
-    type: 'controlChange',
-    channel: 0-15,
-    controller: 0-127,  // CC number
-    value: 0-127
-}
-```
+## Dependencies
+- midi: ^2.0.0 (for MIDI device handling)
+- robotjs: ^0.6.0 (for keyboard simulation)
+- readline: ^1.3.0 (for device selection)
 
-#### Program Change
-```javascript
-{
-    type: 'programChange',
-    channel: 0-15,
-    program: 0-127
-}
-```
+## Attempted Approaches & Limitations
 
-## MIDI Implementation Details
+### Device Discovery & Connection
+Several approaches were tried for MIDI device handling:
 
-### Running Status
-- When sending multiple messages of the same type on the same channel, the status byte can be omitted after the first message
-- Saves bandwidth in high-traffic situations
-- Example: Note On sequence
-  ```
-  90 3C 40  // Note On, note 60, velocity 64
-  3E 40     // Note On (same status), note 62, velocity 64
-  40 40     // Note On (same status), note 64, velocity 64
-  ```
+1. **WebMIDI API**
+   - Required browser environment
+   - Limited access to raw MIDI data
+   - Not suitable for system-wide control
 
-### System Messages
+2. **Serial Port Communication**
+   - Complex protocol implementation needed
+   - Inconsistent device enumeration
+   - Required different handling for each device type
 
-| Message | Hex | Description |
-|---------|-----|-------------|
-| System Exclusive | F0 | Start of SysEx |
-| MIDI Time Code | F1 | Quarter frame |
-| Song Position | F2 | Song position pointer |
-| Song Select | F3 | Song selection |
-| Tune Request | F6 | Tune request |
-| End of SysEx | F7 | End of SysEx |
-| Timing Clock | F8 | Timing clock (24 ppq) |
-| Start | FA | Start sequence |
-| Continue | FB | Continue sequence |
-| Stop | FC | Stop sequence |
-| Active Sensing | FE | Active sensing |
-| System Reset | FF | System reset |
+3. **USB Direct Communication**
+   - Required low-level USB access
+   - Device-specific protocols needed
+   - Permissions issues on Windows
 
-## Troubleshooting
+4. **node-midi Library**
+   - Finally worked reliably
+   - Simple API for device discovery
+   - Consistent behavior across devices
 
-### Common Issues
+### Volume Control
+Several approaches were tried for controlling system volume but none worked reliably:
 
-1. **No MIDI Devices Found**
-   - Check USB connection
-   - Verify device drivers are installed
-   - Try different USB port
-   - Check if device appears in system MIDI devices
+1. **node-audio-windows**
+   - Required node-gyp which failed to install
+   - Complex setup requirements
+   - Not maintained for newer Node.js versions
 
-2. **Permission Issues (Linux/Mac)**
-   - Add user to `audio` group
-   - Check port permissions
-   ```bash
-   sudo usermod -a -G audio $USER
-   ```
+2. **win-audio**
+   - Build failed due to native dependencies
+   - Required specific Windows SDK versions
+   - Installation issues with Node.js v20
 
-3. **WebMIDI Not Working**
-   - Check browser compatibility
-   - Enable MIDI in browser settings
-   - Try Serial MIDI fallback
+3. **PowerShell Commands**
+   - Inconsistent behavior with external audio interfaces
+   - Slow response time
+   - Required elevated privileges
 
-## Contributing
+4. **nircmd**
+   - Required external software installation
+   - Limited support for modern audio devices
+   - Not reliable with external audio interfaces
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+### GUI Feedback
+Electron-based GUI was removed because:
+- Overcomplicated the simple script
+- Added heavy dependencies
+- Not necessary for basic functionality
 
-## License
+## Current Implementation
+- Uses node-midi for reliable device discovery
+- Simple device selection interface
+- Automatic connection to single devices
+- Handles device disconnection gracefully
+- Works with both USB and traditional MIDI ports
 
-MIT License - feel free to use this code in your projects. 
+## Notes
+- Currently supports basic keyboard shortcuts and arrow keys
+- Designed for personal use and testing different MIDI input approaches
+- Easy to extend with new shortcuts via config.json
+
+## Future Ideas
+- Add support for more keyboard shortcuts
+- Implement different types of actions
+- Add support for MIDI velocity
+- Add support for multiple MIDI devices 

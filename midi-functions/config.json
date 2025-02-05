@@ -50,6 +50,11 @@
             "action": "keyboard",
             "shortcut": "right"
         },
+        "77": {
+            "description": "Space",
+            "action": "keyboard",
+            "shortcut": "space"
+        },
         "79": {
             "description": "Enter",
             "action": "keyboard",
@@ -64,9 +69,7 @@
     "controllerCommands": {
         "7": {
             "description": "Volume Control",
-            "action": "volume",
-            "method": "powershell",
-            "fallback": "nircmd"
+            "action": "volume"
         }
     }
 } 

@@ -34,6 +34,9 @@ const keyboardControl = {
     enter: () => {
         robot.keyTap('enter');
     },
+    space: () => {
+        robot.keyTap('space');
+    },
     up: () => {
         robot.keyTap('up');
     },
@@ -50,25 +53,19 @@ const keyboardControl = {
 
 // Volume control methods
 const volumeControl = {
-    powershell: (value) => {
-        const volumePercent = Math.round((value / 127) * 100);
-        exec(`powershell -c "$audio = Get-AudioDevice -Playback; Set-AudioDevice -ID $audio.ID -Volume ${volumePercent}"`);
-    },
-    nircmd: (value) => {
-        exec(`nircmd.exe setvolume 0 ${Math.round((value / 127) * 65535)} ${Math.round((value / 127) * 65535)}`);
-    },
-    wscript: (value) => {
-        const script = `
-        Set WshShell = CreateObject("WScript.Shell")
-        Set oShell = CreateObject("Shell.Application")
-        oShell.ToggleDesktop
-        WScript.Sleep 100
-        WshShell.SendKeys "${Math.round((value / 127) * 100)}"
-        WshShell.SendKeys "{ENTER}"
-        oShell.ToggleDesktop`;
-        
-        fs.writeFileSync('temp_vol.vbs', script);
-        exec('cscript //nologo temp_vol.vbs', () => fs.unlinkSync('temp_vol.vbs'));
+    setVolume: (value) => {
+        const volumeValue = Math.round((value / 127) * 65535); // nircmd uses 0-65535 range
+        try {
+            exec(`nircmd.exe setsysvolume ${volumeValue}`, (error) => {
+                if (error) {
+                    // Fallback to PowerShell if nircmd fails
+                    const volumePercent = Math.round((value / 127) * 100);
+                    exec(`powershell -Command "$volume = Get-AudioDevice -Playback; $volume.Volume = ${volumePercent}"`);
+                }
+            });
+        } catch (error) {
+            console.error('Failed to set volume:', error);
+        }
     }
 };
 
@@ -83,17 +80,7 @@ const actions = {
     },
     volume: (params, config) => {
         if (process.platform === 'win32') {
-            try {
-                volumeControl[config.method](params);
-            } catch (error) {
-                if (config.fallback) {
-                    try {
-                        volumeControl[config.fallback](params);
-                    } catch (fallbackError) {
-                        console.error('Volume control failed. Please install nircmd or check system permissions.');
-                    }
-                }
-            }
+            volumeControl.setVolume(params);
         }
     },
     keyboard: (params, config) => {

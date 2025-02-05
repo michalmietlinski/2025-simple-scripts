@@ -51,24 +51,6 @@ const keyboardControl = {
     }
 };
 
-// Volume control methods
-const volumeControl = {
-    setVolume: (value) => {
-        const volumeValue = Math.round((value / 127) * 65535); // nircmd uses 0-65535 range
-        try {
-            exec(`nircmd.exe setsysvolume ${volumeValue}`, (error) => {
-                if (error) {
-                    // Fallback to PowerShell if nircmd fails
-                    const volumePercent = Math.round((value / 127) * 100);
-                    exec(`powershell -Command "$volume = Get-AudioDevice -Playback; $volume.Volume = ${volumePercent}"`);
-                }
-            });
-        } catch (error) {
-            console.error('Failed to set volume:', error);
-        }
-    }
-};
-
 // Action handlers
 const actions = {
     console: (params, config) => {
@@ -76,11 +58,6 @@ const actions = {
             console.log(...config.params);
         } else {
             console.log(params, config.params);
-        }
-    },
-    volume: (params, config) => {
-        if (process.platform === 'win32') {
-            volumeControl.setVolume(params);
         }
     },
     keyboard: (params, config) => {
@@ -92,6 +69,5 @@ const actions = {
 
 module.exports = {
     actions,
-    volumeControl,
     keyboardControl
 }; 

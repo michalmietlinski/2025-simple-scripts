@@ -1,0 +1,69 @@
+{
+    "noteCommands": {
+        "48": {
+            "description": "Ctrl+A (Select All)",
+            "action": "keyboard",
+            "shortcut": "ctrlA"
+        },
+        "49": {
+            "description": "Alt+Shift+C",
+            "action": "keyboard",
+            "shortcut": "altShiftC"
+        },
+        "50": {
+            "description": "Ctrl+C (Copy)",
+            "action": "keyboard",
+            "shortcut": "ctrlC"
+        },
+        "51": {
+            "description": "Ctrl+X (Cut)",
+            "action": "keyboard",
+            "shortcut": "ctrlX"
+        },
+        "52": {
+            "description": "Ctrl+V (Paste)",
+            "action": "keyboard",
+            "shortcut": "ctrlV"
+        },
+        "72": {
+            "description": "Left Arrow",
+            "action": "keyboard",
+            "shortcut": "left"
+        },
+        "73": {
+            "description": "Up Arrow",
+            "action": "keyboard",
+            "shortcut": "up"
+        },
+        "74": {
+            "description": "Down Arrow",
+            "action": "keyboard",
+            "shortcut": "down"
+        },
+        "75": {
+            "description": "Up Arrow",
+            "action": "keyboard",
+            "shortcut": "up"
+        },
+        "76": {
+            "description": "Right Arrow",
+            "action": "keyboard",
+            "shortcut": "right"
+        },
+        "77": {
+            "description": "Space",
+            "action": "keyboard",
+            "shortcut": "space"
+        },
+        "79": {
+            "description": "Enter",
+            "action": "keyboard",
+            "shortcut": "enter"
+        },
+        "60": {
+            "description": "Middle C",
+            "action": "console",
+            "params": ["Middle C pressed"]
+        }
+    }
+} 

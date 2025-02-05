@@ -1,10 +1,43 @@
 const midi = require('midi');
 const readline = require('readline');
+const fs = require('fs');
+const path = require('path');
+const { actions } = require('./actions');
+
+const config = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
 
 const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout
 });
+
+// Volume control methods
+const volumeControl = {
+    powershell: (value) => {
+        const volumePercent = Math.round((value / 127) * 100);
+        exec(`powershell -c "$volume = New-Object -ComObject Shell.Application; $volume.Windows()[0].Document.Application.Volume = ${volumePercent}"`);
+    },
+    nircmd: (value) => {
+        exec(`nircmd.exe setsysvolume ${Math.round((value / 127) * 65535)}`);
+    },
+    wscript: (value) => {
+        const script = `
+        Set WshShell = CreateObject("WScript.Shell")
+        WshShell.Run "sndvol.exe"
+        WScript.Sleep 500
+        WshShell.SendKeys ${Math.round((value / 127) * 100)}
+        WshShell.SendKeys "{ENTER}"`;
+        
+        fs.writeFileSync('temp_vol.vbs', script);
+        exec('cscript //nologo temp_vol.vbs', () => fs.unlinkSync('temp_vol.vbs'));
+    }
+};
+
+// Command executor
+function executeCommand(command, params) {
+    if (!command || !actions[command.action]) return;
+    actions[command.action](params, command);
+}
 
 function handleMidiMessage(deltaTime, message) {
     const [command, note, velocity] = message;
@@ -14,17 +47,31 @@ function handleMidiMessage(deltaTime, message) {
     switch(type) {
         case 0x90: // Note On
             if (velocity > 0) {
-                console.log(`Note On - Note: ${note}, Velocity: ${velocity}, Channel: ${channel}`);
-            } else {
-                console.log(`Note Off - Note: ${note} (velocity 0), Channel: ${channel}`);
+                const noteCommand = config.noteCommands[note];
+                if (noteCommand) {
+                    executeCommand(noteCommand, velocity);
+                } else {
+                    console.log(`Note On - Note: ${note}, Velocity: ${velocity}, Channel: ${channel}`);
+                }
             }
             break;
+            
         case 0x80: // Note Off
-            console.log(`Note Off - Note: ${note}, Velocity: ${velocity}, Channel: ${channel}`);
+            const noteCommand = config.noteCommands[note];
+            if (!noteCommand) {
+                console.log(`Note Off - Note: ${note}, Velocity: ${velocity}, Channel: ${channel}`);
+            }
             break;
+            
         case 0xB0: // Control Change
-            console.log(`Control Change - Controller: ${note}, Value: ${velocity}, Channel: ${channel}`);
+            const controlCommand = config.controllerCommands[note];
+            if (controlCommand) {
+                executeCommand(controlCommand, velocity);
+            } else {
+                console.log(`Control Change - Controller: ${note}, Value: ${velocity}, Channel: ${channel}`);
+            }
             break;
+            
         default:
             console.log('Other message:', message);
     }

@@ -35,8 +35,9 @@ const volumeControl = {
 
 // Command executor
 function executeCommand(command, params) {
-    if (!command || !actions[command.action]) return;
-    actions[command.action](params, command);
+    if (command && actions[command.action]) {
+        actions[command.action](params, command);
+    }
 }
 
 function handleMidiMessage(deltaTime, message) {
@@ -47,24 +48,20 @@ function handleMidiMessage(deltaTime, message) {
     switch(type) {
         case 0x90: // Note On
             if (velocity > 0) {
-                const noteCommand = config.noteCommands[note];
-                if (noteCommand) {
-                    executeCommand(noteCommand, velocity);
-                } else {
-                    console.log(`Note On - Note: ${note}, Velocity: ${velocity}, Channel: ${channel}`);
-                }
+                // Always pass to note handler, don't execute single note commands immediately
+                actions.note(note, velocity, true);
+            } else {
+                // Note Off with velocity 0
+                actions.note(note, 0, false);
             }
             break;
             
         case 0x80: // Note Off
-            const noteCommand = config.noteCommands[note];
-            if (!noteCommand) {
-                console.log(`Note Off - Note: ${note}, Velocity: ${velocity}, Channel: ${channel}`);
-            }
+            actions.note(note, velocity, false);
             break;
             
         case 0xB0: // Control Change
-            const controlCommand = config.controllerCommands[note];
+            const controlCommand = config.controllerCommands?.[note];
             if (controlCommand) {
                 executeCommand(controlCommand, velocity);
             } else {

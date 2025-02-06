@@ -1,10 +1,10 @@
 # MIDI Keyboard Shortcuts
 
-A simple Node.js script for handling MIDI input from my keyboard and converting it to system keyboard shortcuts. Perfect for testing different approaches to MIDI input handling and automation.
+A simple Node.js script for handling MIDI input from my keyboard and converting it to system keyboard shortcuts and text input. Perfect for testing different approaches to MIDI input handling and automation.
 
 ## Features
 
-### Keyboard Shortcuts
+### Single Key Shortcuts
 - **Note 48**: Ctrl+A (Select All)
 - **Note 49**: Alt+Shift+C
 - **Note 50**: Ctrl+C (Copy)
@@ -16,6 +16,12 @@ A simple Node.js script for handling MIDI input from my keyboard and converting 
 - **Note 76**: Right Arrow
 - **Note 77**: Space
 - **Note 79**: Enter
+
+### Chord Commands
+Press these notes together and release to trigger:
+- **Notes 65,69,72**: Pastes "niech ..."
+- **Notes 60,64,67**: C Major Chord action
+- **Notes 62,65,69**: D Minor Chord action
 
 ## Installation
 
@@ -37,7 +43,19 @@ The script will:
 1. List available MIDI devices
 2. Let you select a device (or automatically connect if only one is available)
 3. Start listening for MIDI input
-4. Convert MIDI notes to keyboard shortcuts
+4. Convert MIDI notes to keyboard shortcuts or chord actions
+
+## How It Works
+
+### Single Notes
+- Press and release a mapped note to trigger its action
+- Actions execute on key release to allow for chord detection
+
+### Chords
+- Press multiple notes (in any order)
+- Hold them all down
+- Release all notes to trigger the chord action
+- If no chord is recognized, no action is taken
 
 ## Requirements
 - Node.js
@@ -48,6 +66,21 @@ The script will:
 - midi: ^2.0.0 (for MIDI device handling)
 - robotjs: ^0.6.0 (for keyboard simulation)
 - readline: ^1.3.0 (for device selection)
+- clipboardy: 2.3.0 (for clipboard operations)
+
+## Notes
+- Currently supports basic keyboard shortcuts and text input
+- Designed for personal use and testing different MIDI input approaches
+- Easy to extend with new shortcuts via config.json
+- Chord detection waits for all keys to be released
+- Preserves clipboard content when pasting text
+
+## Future Ideas
+- Add support for more keyboard shortcuts
+- Add more chord patterns
+- Add support for MIDI velocity in actions
+- Add support for multiple MIDI devices
+- Add configuration UI
 
 ## Attempted Approaches & Limitations
 
@@ -110,13 +143,32 @@ Electron-based GUI was removed because:
 - Handles device disconnection gracefully
 - Works with both USB and traditional MIDI ports
 
-## Notes
-- Currently supports basic keyboard shortcuts and arrow keys
-- Designed for personal use and testing different MIDI input approaches
-- Easy to extend with new shortcuts via config.json
+## Alternative Solutions
 
-## Future Ideas
-- Add support for more keyboard shortcuts
-- Implement different types of actions
-- Add support for MIDI velocity
-- Add support for multiple MIDI devices 
+### MIDI Mixer
+During development, we discovered [MIDI Mixer](https://www.midi-mixer.com/), a professional solution that handles many of the challenges we encountered:
+
+1. **Volume Control**
+   - Successfully controls app and device volumes
+   - Works with external audio interfaces
+   - Provides visual feedback through OSD
+
+2. **Device Support**
+   - Works with any MIDI controller
+   - Includes preset profiles for popular devices
+   - Supports custom device configurations
+
+3. **Features We Couldn't Implement**
+   - Per-app volume control
+   - Plugin system for external integrations
+   - Visual feedback without heavy dependencies
+   - AutoHotkey script integration
+
+If you need a reliable, feature-rich solution, consider using MIDI Mixer instead of this experimental script.
+
+## Why Continue This Project?
+Despite the existence of MIDI Mixer, this project continues as:
+- A learning exercise in MIDI communication
+- A minimal solution for basic keyboard shortcuts
+- An experiment in different implementation approaches
+- A platform for testing custom MIDI handling ideas

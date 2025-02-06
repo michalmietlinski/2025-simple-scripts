@@ -60,10 +60,27 @@
             "action": "keyboard",
             "shortcut": "enter"
         },
-        "60": {
+        "59": {
             "description": "Middle C",
             "action": "console",
             "params": ["Middle C pressed"]
+        }
+    },
+    "chordCommands": {
+        "60,64,67": {
+            "description": "C Major Chord (C-E-G)",
+            "action": "console",
+            "shortcut": "ctrlShiftS"
+        },
+        "62,65,69": {
+            "description": "D Minor Chord (D-F-A)",
+            "action": "keyboard",
+            "shortcut": "ctrlShiftD"
+        },
+        "65,69,72": {
+            "description": "Paste 'niech spierdala'",
+            "action": "keyboard",
+            "shortcut": "pasteNiechSpierdala"
         }
     }
 } 

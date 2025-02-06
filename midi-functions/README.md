@@ -1,4 +1,6 @@
 # MIDI Keyboard Shortcuts
+This script is slow and very inefficient. I hope to use it as a learning exercise for handling MIDI input and automation. And hopefully rewrite it in a more efficient way. Most likely using windows API.
+
 
 A simple Node.js script for handling MIDI input from my keyboard and converting it to system keyboard shortcuts and text input. Perfect for testing different approaches to MIDI input handling and automation.
 

@@ -21,11 +21,11 @@ APP_CONFIG = {
 
 # OpenAI API configuration
 OPENAI_CONFIG = {
-    "api_key": os.getenv("OPENAI_API_KEY"),
-    "organization": os.getenv("OPENAI_ORGANIZATION", None),
-    "model": "dall-e-3",
+    "api_key": os.getenv("OPENAI_API_KEY"),  # Will be None if not found
+    "model": "dall-e-2",
     "api_base": "https://api.openai.com/v1",
-    "timeout": 30,
+    "organization": os.getenv("OPENAI_ORGANIZATION", ""),  # Optional
+    "timeout": 60,  # Seconds
 }
 
 # Create necessary directories if they don't exist

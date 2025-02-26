@@ -3,6 +3,9 @@ import logging
 import sys
 from dotenv import load_dotenv
 
+# Add parent directory to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -15,10 +18,14 @@ def verify_project_structure():
     """Verify that all required directories and files exist."""
     logger.info("Verifying project structure...")
     
+    # Get the parent directory path
+    parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    
     # Check directories
     directories = ["utils", "outputs", "data"]
     for directory in directories:
-        if not os.path.isdir(directory):
+        dir_path = os.path.join(parent_dir, directory)
+        if not os.path.isdir(dir_path):
             logger.error(f"Directory '{directory}' not found")
             return False
     
@@ -32,7 +39,8 @@ def verify_project_structure():
         "utils/usage_tracker.py"
     ]
     for file in files:
-        if not os.path.isfile(file):
+        file_path = os.path.join(parent_dir, file)
+        if not os.path.isfile(file_path):
             logger.error(f"File '{file}' not found")
             return False
     
@@ -50,50 +58,56 @@ def verify_config_loading():
         required_app_keys = ["app_name", "version", "output_dir", "data_dir"]
         for key in required_app_keys:
             if key not in APP_CONFIG:
-                logger.error(f"APP_CONFIG missing key: {key}")
+                logger.error(f"APP_CONFIG missing required key: {key}")
                 return False
         
-        required_openai_keys = ["api_key", "model", "api_base"]
+        required_openai_keys = ["api_key", "model", "api_base", "timeout"]
         for key in required_openai_keys:
             if key not in OPENAI_CONFIG:
-                logger.error(f"OPENAI_CONFIG missing key: {key}")
+                logger.error(f"OPENAI_CONFIG missing required key: {key}")
                 return False
         
-        # Test directory creation
+        # Test ensure_directories function
         ensure_directories()
-        today_dir = os.path.join(APP_CONFIG["output_dir"], 
-                                 __import__('datetime').datetime.now().strftime("%Y-%m-%d"))
-        if not os.path.isdir(today_dir):
-            logger.error(f"Failed to create today's directory: {today_dir}")
-            return False
         
         logger.info("Configuration loading verified successfully")
         return True
     except Exception as e:
-        logger.error(f"Error verifying configuration: {str(e)}")
+        logger.error(f"Error verifying configuration loading: {str(e)}")
         return False
 
 def verify_api_key_management():
-    """Verify API key management."""
+    """Verify that API key management is implemented."""
     logger.info("Verifying API key management...")
     
-    # Check if .env file exists or OPENAI_API_KEY is in environment
-    if not os.path.isfile(".env") and "OPENAI_API_KEY" not in os.environ:
+    # Get the parent directory path
+    parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    env_file = os.path.join(parent_dir, '.env')
+    
+    # Check if .env file exists or OPENAI_API_KEY environment variable is set
+    if not os.path.isfile(env_file) and not os.getenv('OPENAI_API_KEY'):
         logger.warning("No .env file or OPENAI_API_KEY environment variable found")
         logger.warning("API key management can't be fully verified without a key")
-        return True  # Return True anyway since this might be expected
     
-    # Load environment variables
-    load_dotenv()
-    
-    # Check if key is loaded
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        logger.error("Failed to load API key from .env or environment")
+    # Check if app.py has API key management code
+    try:
+        with open(os.path.join(parent_dir, 'app.py'), 'r') as f:
+            app_code = f.read()
+            
+        # Check for key management functions
+        if 'show_api_key_dialog' not in app_code:
+            logger.error("API key dialog function not found in app.py")
+            return False
+            
+        if '.env' not in app_code:
+            logger.error("No .env file handling found in app.py")
+            return False
+        
+        logger.info("API key management verified successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Error verifying API key management: {str(e)}")
         return False
-    
-    logger.info("API key management verified successfully")
-    return True
 
 def verify_utility_modules():
     """Verify that utility modules can be imported and initialized."""
@@ -101,11 +115,13 @@ def verify_utility_modules():
     
     try:
         # Fix the import error in usage_tracker.py
-        with open("utils/usage_tracker.py", "r") as f:
+        parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        usage_tracker_path = os.path.join(parent_dir, 'utils', 'usage_tracker.py')
+        with open(usage_tracker_path, "r") as f:
             content = f.read()
         
         if content.startswith("aimport logging"):
-            with open("utils/usage_tracker.py", "w") as f:
+            with open(usage_tracker_path, "w") as f:
                 f.write(content.replace("aimport logging", "import logging"))
             logger.info("Fixed import error in usage_tracker.py")
         

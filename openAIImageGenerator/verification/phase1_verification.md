@@ -71,4 +71,9 @@ python -m pip install --user --upgrade pip  # Make sure pip is up to date
 pip install --user openai==0.28.1  # Use a specific older version that has fewer dependencies
 
 # Then run the verification script
+# Run from project root directory
+python verification/verify_phase1.py
+
+# Or run from verification directory
+cd verification
 python verify_phase1.py

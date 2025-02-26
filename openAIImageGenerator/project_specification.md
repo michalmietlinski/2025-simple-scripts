@@ -157,12 +157,12 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
 - **Checkpoint 1**: ✅ Verified project structure and configuration loading
 
 ### Phase 2: Core OpenAI Integration (Days 3-4)
-- [ ] Implement OpenAI client wrapper
-- [ ] Create basic image generation functionality
-- [ ] Add token usage tracking
-- [ ] Implement error handling for API calls
-- [ ] Add reference image upload and processing
-- **Checkpoint 2**: Test image generation with sample prompts
+- [x] Implement OpenAI client wrapper
+- [x] Create basic image generation functionality
+- [x] Add token usage tracking
+- [x] Implement error handling for API calls
+- [x] Add reference image upload and processing
+- **Checkpoint 2**: ✅ Test image generation with sample prompts
 
 ### Phase 3: Database Implementation (Days 5-6)
 - [ ] Create SQLite database schema

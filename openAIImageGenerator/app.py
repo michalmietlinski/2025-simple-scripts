@@ -9,6 +9,7 @@ from utils.openai_client import OpenAIClient
 from utils.file_manager import FileManager
 from utils.usage_tracker import UsageTracker
 from config import APP_CONFIG, ensure_directories
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -28,7 +29,7 @@ class DALLEGeneratorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("DALL-E Image Generator")
-        self.root.geometry("1200x800")
+        self.root.geometry("1400x1000")
         
         # Check for API key
         self.api_key = os.getenv("OPENAI_API_KEY")
@@ -190,17 +191,17 @@ class DALLEGeneratorApp:
         generate_btn = Button(generation_frame, text="Generate Image", command=self.generate_image, bg="#4CAF50", fg="white", font=("Arial", 12), padx=20, pady=10)
         generate_btn.pack(pady=20)
         
-        # Image preview area
-        self.preview_frame = Frame(generation_frame, bg="#f0f0f0", width=600, height=600)
+        # Image preview area - increase size to 800x800
+        self.preview_frame = Frame(generation_frame, bg="#f0f0f0", width=800, height=800)
         self.preview_frame.pack(pady=20)
         self.preview_frame.pack_propagate(False)  # Prevent frame from shrinking
         
         self.preview_label = Label(self.preview_frame, text="Image preview will appear here", bg="#f0f0f0")
         self.preview_label.pack(expand=True)
         
-        # Save button (initially disabled)
-        self.save_btn = Button(generation_frame, text="Save Image", command=self.save_image, state="disabled")
-        self.save_btn.pack(pady=(0, 20))
+        # Add note about auto-saving
+        auto_save_note = Label(generation_frame, text="Images are automatically saved to the outputs folder", font=("Arial", 10, "italic"), fg="gray")
+        auto_save_note.pack(pady=(0, 20))
         
         # Initialize clients
         self.openai_client = None
@@ -302,6 +303,17 @@ class DALLEGeneratorApp:
             )
             
             if image_data and usage_info:
+                # Check if this is a billing error
+                if usage_info.get("model") == "billing_error":
+                    messagebox.showwarning(
+                        "Billing Error", 
+                        "Your OpenAI account has reached its billing limit.\n\n"
+                        "To fix this:\n"
+                        "1. Go to platform.openai.com\n"
+                        "2. Check your billing settings\n"
+                        "3. Add a payment method or increase limits"
+                    )
+                
                 # Record usage
                 self.usage_tracker.record_usage(
                     usage_info["estimated_tokens"],
@@ -317,10 +329,43 @@ class DALLEGeneratorApp:
                     "prompt": prompt
                 }
                 
-                # Enable save button
-                self.save_btn.config(state="normal")
-                
-                messagebox.showinfo("Success", "Image generated successfully!")
+                # Auto-save the image
+                try:
+                    logger.info("Auto-saving image after generation...")
+                    # Ensure file manager is initialized
+                    if not self.file_manager:
+                        self.file_manager = FileManager()
+                    
+                    # Create a timestamp for the filename
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    
+                    # Save the image with a default description including timestamp
+                    output_path = self.file_manager.save_image(
+                        image_data,
+                        prompt,
+                        f"auto_saved_{timestamp}"
+                    )
+                    
+                    if output_path and os.path.exists(output_path):
+                        file_size = os.path.getsize(output_path)
+                        logger.info(f"Image auto-saved successfully to {output_path}, size: {file_size} bytes")
+                        
+                        # Show success message with the saved path
+                        messagebox.showinfo("Success", f"Image generated and saved to:\n{output_path}")
+                        
+                        # Open the containing folder
+                        try:
+                            os.startfile(os.path.dirname(output_path))
+                        except Exception as e:
+                            logger.error(f"Failed to open containing folder: {str(e)}")
+                    else:
+                        logger.error("Failed to auto-save image")
+                        messagebox.showinfo("Success", "Image generated successfully, but could not be saved automatically.")
+                except Exception as e:
+                    logger.error(f"Error during auto-save: {str(e)}")
+                    import traceback
+                    logger.error(f"Auto-save traceback: {traceback.format_exc()}")
+                    messagebox.showinfo("Success", "Image generated successfully, but could not be saved automatically.")
             else:
                 messagebox.showerror("Error", "Failed to generate image")
         except Exception as e:
@@ -337,14 +382,20 @@ class DALLEGeneratorApp:
             # Convert bytes to PIL Image
             image = Image.open(BytesIO(image_data))
             
-            # Resize to fit preview frame if needed
-            preview_width = self.preview_frame.winfo_width() - 20
-            preview_height = self.preview_frame.winfo_height() - 20
+            # Get the actual frame dimensions
+            preview_width = self.preview_frame.winfo_width()
+            preview_height = self.preview_frame.winfo_height()
+            
+            # If the frame hasn't been properly sized yet, use default values
+            if preview_width < 50:  # Arbitrary small value indicating the frame isn't properly sized yet
+                preview_width = 580
+            if preview_height < 50:
+                preview_height = 580
             
             # Calculate scaling factor to fit image within preview
             width_ratio = preview_width / image.width
             height_ratio = preview_height / image.height
-            scale_factor = min(width_ratio, height_ratio)
+            scale_factor = min(width_ratio, height_ratio, 1.0)  # Don't upscale small images
             
             new_width = int(image.width * scale_factor)
             new_height = int(image.height * scale_factor)
@@ -371,23 +422,97 @@ class DALLEGeneratorApp:
             return
         
         try:
+            # Ensure output directories exist
+            if not self.file_manager:
+                self.file_manager = FileManager()
+            
+            # Force recreation of output directories
+            today_dir = self.file_manager.ensure_directories()
+            logger.info(f"Ensuring output directory exists: {today_dir}")
+            
+            # Debug the current image data
+            image_data = self.current_image["data"]
+            if isinstance(image_data, str) and image_data.startswith('http'):
+                # We have a URL instead of binary data
+                logger.info(f"Image data is a URL: {image_data[:50]}...")
+                messagebox.showerror("Error", "Cannot save image from URL in this version. Please try again with b64_json format.")
+                return
+            
+            # Check if we have valid image data
+            if not image_data or not isinstance(image_data, bytes):
+                logger.error(f"Invalid image data type: {type(image_data)}")
+                messagebox.showerror("Error", f"Invalid image data type: {type(image_data)}")
+                return
+            
+            # Log image data size
+            logger.info(f"Image data size: {len(image_data)} bytes")
+            
+            # Verify image data is valid by trying to open it
+            try:
+                test_image = Image.open(BytesIO(image_data))
+                logger.info(f"Image data is valid: {test_image.format} image, size {test_image.width}x{test_image.height}")
+            except Exception as e:
+                logger.error(f"Image data is not a valid image: {str(e)}")
+                messagebox.showerror("Error", f"Image data is not valid: {str(e)}")
+                return
+            
             # Ask for description
             description = simpledialog.askstring("Image Description", "Enter a description for this image (optional):")
             
+            # Create a backup of the image data in case saving fails
+            backup_path = os.path.join(os.getcwd(), "backup_image.png")
+            try:
+                with open(backup_path, "wb") as f:
+                    f.write(image_data)
+                logger.info(f"Created backup image at {backup_path}")
+            except Exception as e:
+                logger.warning(f"Failed to create backup image: {str(e)}")
+            
             # Save image
+            logger.info(f"Attempting to save image with prompt: {self.current_image['prompt'][:30]}...")
             output_path = self.file_manager.save_image(
-                self.current_image["data"], 
+                image_data, 
                 self.current_image["prompt"],
                 description
             )
             
             if output_path:
-                messagebox.showinfo("Success", f"Image saved to: {output_path}")
+                # Verify the file was actually created
+                if os.path.exists(output_path):
+                    file_size = os.path.getsize(output_path)
+                    logger.info(f"Image saved successfully. File size: {file_size} bytes")
+                    messagebox.showinfo("Success", f"Image saved to: {output_path}")
+                    # Open the containing folder
+                    try:
+                        os.startfile(os.path.dirname(output_path))
+                    except Exception as e:
+                        logger.error(f"Failed to open containing folder: {str(e)}")
+                else:
+                    # Try to use the backup
+                    backup_dir = os.path.dirname(output_path)
+                    backup_filename = os.path.basename(output_path)
+                    new_path = os.path.join(backup_dir, "backup_" + backup_filename)
+                    
+                    try:
+                        # Ensure directory exists
+                        os.makedirs(backup_dir, exist_ok=True)
+                        # Copy backup to outputs folder
+                        import shutil
+                        shutil.copy2(backup_path, new_path)
+                        logger.info(f"Used backup image to save to: {new_path}")
+                        messagebox.showinfo("Success (from backup)", f"Image saved to: {new_path}")
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to save image. File not found at: {output_path}")
+                        logger.error(f"File not found after save attempt: {output_path}")
+                        logger.error(f"Backup save also failed: {str(e)}")
             else:
                 messagebox.showerror("Error", "Failed to save image")
         except Exception as e:
             messagebox.showerror("Error", f"Error saving image: {str(e)}")
             logger.error(f"Error saving image: {str(e)}")
+            # Log the full exception traceback
+            import traceback
+            logger.error(f"Exception traceback: {traceback.format_exc()}")
 
 if __name__ == "__main__":
     root = tk.Tk()

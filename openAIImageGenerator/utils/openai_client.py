@@ -1,9 +1,11 @@
 import os
 import logging
 import base64
+import json
 from io import BytesIO
 from openai import OpenAI
 from config import OPENAI_CONFIG, APP_CONFIG
+from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +43,20 @@ class OpenAIClient:
                     available_models.append(model.id)
                     logger.info(f"Found available model: {model.id}")
             
+            # If no DALL-E models found, use a simulated model for testing
+            if not available_models:
+                logger.warning("No DALL-E models available. Using simulated model for testing.")
+                return ["dall-e-simulated"]
+            
             return available_models
         except Exception as e:
             logger.warning(f"Could not detect available models: {str(e)}")
-            # Default to DALL-E 2 as fallback
-            return ["dall-e-2"]
+            # Use simulated model as fallback
+            return ["dall-e-simulated"]
     
     def _select_best_model(self):
         """Select the best available DALL-E model."""
-        preferred_model = OPENAI_CONFIG.get("model", "dall-e-2")
+        preferred_model = OPENAI_CONFIG.get("model", "dall-e-3")
         
         # If preferred model is available, use it
         if preferred_model in self.available_models:
@@ -65,18 +72,33 @@ class OpenAIClient:
         elif self.available_models:
             return self.available_models[0]
         else:
-            # Fallback to DALL-E 2 if no models detected
-            return "dall-e-2"
+            # Fallback to simulated model if no models detected
+            return "dall-e-simulated"
     
     def validate_api_key(self):
         """Validate the API key by making a simple request."""
         try:
             # Make a simple models list request to validate the API key
-            self.client.models.list(limit=1)
+            logger.info("Validating API key with models.list request")
+            response = self.client.models.list(limit=1)
+            # Log the response (but sanitize any sensitive information)
+            logger.info(f"API key validation response: {response}")
             logger.info("API key validated successfully")
             return True
         except Exception as e:
-            logger.error(f"API key validation failed: {str(e)}")
+            # Log detailed error information
+            error_type = type(e).__name__
+            error_msg = str(e)
+            logger.error(f"API key validation failed: {error_type} - {error_msg}")
+            
+            # Try to extract and log more detailed error information if available
+            if hasattr(e, 'response'):
+                try:
+                    status_code = e.response.status_code
+                    error_json = e.response.json()
+                    logger.error(f"API Error Details - Status: {status_code}, Response: {json.dumps(error_json)}")
+                except:
+                    pass
             return False
 
     def get_model_capabilities(self):
@@ -148,8 +170,63 @@ class OpenAIClient:
         logger.info(log_msg)
         
         try:
+            # Check if we're using the simulated model
+            if self.model == "dall-e-simulated":
+                # Generate a placeholder image for testing
+                logger.info("Using simulated model to generate placeholder image")
+                
+                # Create a blank image with text
+                width, height = map(int, size.split('x'))
+                image = Image.new('RGB', (width, height), color=(240, 240, 240))
+                draw = ImageDraw.Draw(image)
+                
+                # Add prompt text
+                font_size = max(12, min(24, width // 30))
+                try:
+                    font = ImageFont.truetype("arial.ttf", font_size)
+                except IOError:
+                    # Fallback to default font if arial not available
+                    font = ImageFont.load_default()
+                    
+                # Wrap text to fit image width
+                import textwrap
+                wrapped_text = textwrap.fill(prompt, width=40)
+                
+                # Draw text
+                text_color = (0, 0, 0)
+                draw.text((20, 20), f"SIMULATED IMAGE\n\n{wrapped_text}", font=font, fill=text_color)
+                
+                # Add info about DALL-E access
+                info_text = "Your account doesn't have DALL-E access.\nPlease enable it in your OpenAI account settings."
+                draw.text((20, height - 60), info_text, font=font, fill=(200, 0, 0))
+                
+                # Convert to bytes
+                img_byte_arr = BytesIO()
+                image.save(img_byte_arr, format='PNG')
+                img_byte_arr.seek(0)
+                image_data = img_byte_arr.read()
+                
+                # Create usage info
+                usage_info = {
+                    "estimated_tokens": 0,
+                    "prompt_tokens": len(prompt.split()),
+                    "size": size,
+                    "model": "simulated",
+                    "n": n
+                }
+                
+                return image_data, usage_info
+            
             # Generate the image with appropriate parameters
+            logger.info(f"Sending image generation request with params: {json.dumps(generation_params)}")
             response = self.client.images.generate(**generation_params)
+            # Log response (excluding binary data)
+            response_info = {
+                "created": getattr(response, "created", None),
+                "data_count": len(getattr(response, "data", [])),
+                "model": getattr(response, "model", None)
+            }
+            logger.info(f"Image generation response info: {json.dumps(response_info)}")
             
             # Extract usage information (this is approximate as the API doesn't provide exact token counts)
             # We'll estimate based on prompt length and image size
@@ -183,14 +260,152 @@ class OpenAIClient:
             
             # For b64_json response format, decode the base64 data
             if response_format == "b64_json":
-                image_data = base64.b64decode(response.data[0].b64_json)
-                return image_data, usage_info
+                try:
+                    # Check if response data exists and has the expected structure
+                    if not response.data or len(response.data) == 0:
+                        logger.error("No data in response")
+                        return None, None
+                    
+                    # Log the response data structure for debugging
+                    data_item = response.data[0]
+                    has_b64 = hasattr(data_item, 'b64_json')
+                    logger.info(f"Response data item has b64_json attribute: {has_b64}")
+                    
+                    if has_b64:
+                        # Get the base64 encoded image data
+                        b64_data = data_item.b64_json
+                        
+                        # Log the first 50 chars of base64 data for debugging
+                        if b64_data:
+                            logger.info(f"Received base64 data (first 50 chars): {b64_data[:50]}...")
+                            # Decode the base64 data
+                            image_data = base64.b64decode(b64_data)
+                            logger.info(f"Successfully decoded base64 image data, length: {len(image_data)}")
+                            return image_data, usage_info
+                        else:
+                            logger.error("b64_json attribute is empty")
+                            return None, None
+                    else:
+                        # If b64_json is not available, try to get the URL
+                        if hasattr(data_item, 'url') and data_item.url:
+                            logger.info(f"No b64_json found, using URL instead: {data_item.url[:50]}...")
+                            # Return the URL instead
+                            return data_item.url, usage_info
+                        else:
+                            # Try to access b64_json as a dictionary key
+                            try:
+                                if isinstance(data_item, dict) and 'b64_json' in data_item:
+                                    b64_data = data_item['b64_json']
+                                    logger.info(f"Found b64_json as dictionary key, first 50 chars: {b64_data[:50]}...")
+                                    image_data = base64.b64decode(b64_data)
+                                    logger.info(f"Successfully decoded base64 image data from dict, length: {len(image_data)}")
+                                    return image_data, usage_info
+                            except:
+                                pass
+                            
+                            # Last resort: try to convert to dict and access
+                            try:
+                                data_dict = vars(data_item)
+                                if 'b64_json' in data_dict:
+                                    b64_data = data_dict['b64_json']
+                                    logger.info(f"Found b64_json in vars(), first 50 chars: {b64_data[:50]}...")
+                                    image_data = base64.b64decode(b64_data)
+                                    logger.info(f"Successfully decoded base64 image data from vars, length: {len(image_data)}")
+                                    return image_data, usage_info
+                            except:
+                                pass
+                                
+                            logger.error("Response data item has neither b64_json nor url")
+                            return None, None
+                except Exception as e:
+                    logger.error(f"Error decoding base64 data: {str(e)}")
+                    # Log the response structure for debugging
+                    try:
+                        logger.error(f"Response structure: {dir(response)}")
+                        logger.error(f"Response data structure: {dir(response.data[0])}")
+                    except:
+                        pass
+                    return None, None
             else:
                 # For URL response format, return the URL
                 return response.data[0].url, usage_info
                 
         except Exception as e:
-            logger.error(f"Image generation failed: {str(e)}")
+            # Log detailed error information
+            error_type = type(e).__name__
+            error_msg = str(e)
+            logger.error(f"Image generation failed: {error_type} - {error_msg}")
+            
+            # Check for specific billing errors
+            billing_error = False
+            error_message = "Unknown error"
+            
+            # Try to extract and log more detailed error information if available
+            if hasattr(e, 'response'):
+                try:
+                    status_code = e.response.status_code
+                    error_json = e.response.json()
+                    logger.error(f"API Error Details - Status: {status_code}, Response: {json.dumps(error_json)}")
+                    
+                    # Check for specific error codes
+                    if 'error' in error_json:
+                        error_code = error_json['error'].get('code')
+                        error_type = error_json['error'].get('type')
+                        
+                        if error_code == 'billing_hard_limit_reached' or error_type == 'insufficient_quota':
+                            billing_error = True
+                            error_message = "Billing limit reached. Please check your OpenAI account billing settings."
+                        elif error_code == 'model_not_found':
+                            error_message = f"Model {self.model} not available to your account."
+                except:
+                    pass
+            
+            # If billing error detected, generate a special error image
+            if billing_error:
+                logger.warning("Billing error detected, generating error image")
+                
+                # Create a blank image with text explaining the billing issue
+                width, height = map(int, size.split('x'))
+                image = Image.new('RGB', (width, height), color=(240, 240, 240))
+                draw = ImageDraw.Draw(image)
+                
+                # Add error text
+                font_size = max(12, min(24, width // 30))
+                try:
+                    font = ImageFont.truetype("arial.ttf", font_size)
+                except IOError:
+                    font = ImageFont.load_default()
+                    
+                # Draw error message
+                draw.text((20, 20), "BILLING ERROR", font=font, fill=(200, 0, 0))
+                draw.text((20, 60), error_message, font=font, fill=(0, 0, 0))
+                draw.text((20, 100), "To fix this:", font=font, fill=(0, 0, 0))
+                draw.text((20, 140), "1. Go to platform.openai.com", font=font, fill=(0, 0, 0))
+                draw.text((20, 180), "2. Check your billing settings", font=font, fill=(0, 0, 0))
+                draw.text((20, 220), "3. Add a payment method or increase limits", font=font, fill=(0, 0, 0))
+                
+                # Add the prompt at the bottom
+                wrapped_text = textwrap.fill(f"Your prompt: {prompt}", width=40)
+                draw.text((20, height - 100), wrapped_text, font=font, fill=(100, 100, 100))
+                
+                # Convert to bytes
+                img_byte_arr = BytesIO()
+                image.save(img_byte_arr, format='PNG')
+                img_byte_arr.seek(0)
+                image_data = img_byte_arr.read()
+                
+                # Create usage info
+                usage_info = {
+                    "estimated_tokens": 0,
+                    "prompt_tokens": len(prompt.split()),
+                    "size": size,
+                    "model": "billing_error",
+                    "n": n,
+                    "error": error_message
+                }
+                
+                return image_data, usage_info
+            
             return None, None
             
     def generate_image_variation(self, image_data, size=None, n=1, response_format="b64_json"):

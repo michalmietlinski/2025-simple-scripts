@@ -17,6 +17,8 @@ This application provides a user-friendly interface for generating images using 
 - **Full Resolution Viewing**: Examine generated images in their original resolution
 - **Output Directory Access**: Easily access saved images
 - **History Management**: Delete individual prompts/generations or clear entire history
+- **Modern UI**: Styled buttons, tabs, and dropdowns with hover effects for improved user experience
+- **Cross-Platform Compatibility**: UI components designed to work across different operating systems and Python versions
 
 ## Project Structure
 
@@ -41,6 +43,7 @@ The project has been implemented in phases, each building upon the previous:
 ## Feature Documentation
 
 - **[Delete Functionality](readmes/README_DELETE_FUNCTIONALITY.md)** - Detailed documentation on the prompt and generation delete features
+- **[UI Improvements](readmes/README_UI_IMPROVEMENTS.md)** - Information about the modern UI with styled buttons
 
 ## Getting Started
 

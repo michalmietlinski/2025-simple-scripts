@@ -55,7 +55,12 @@ class DALLEGeneratorApp:
         status_label.pack()
         
         # Create notebook for tabs
-        self.notebook = ttk.Notebook(self.root)
+        self.notebook = self.create_styled_notebook(
+            self.root,
+            selected_bg_color="#4CAF50",
+            selected_fg_color="white",
+            font=("Arial", 10, "bold")
+        )
         self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Create tabs
@@ -155,7 +160,7 @@ class DALLEGeneratorApp:
         self.size_var = StringVar(value=APP_CONFIG["default_image_size"])
         # Initialize with default sizes
         self.sizes = ["256x256", "512x512", "1024x1024"]
-        self.size_menu = OptionMenu(size_frame, self.size_var, *self.sizes)
+        self.size_menu = self.create_styled_dropdown(size_frame, self.size_var, self.sizes)
         self.size_menu.pack(side="left", padx=(0, 20))
         
         # Quality and style options (will be shown/hidden based on model)
@@ -164,21 +169,30 @@ class DALLEGeneratorApp:
         
         self.quality_label = Label(self.quality_frame, text="Quality:", font=("Arial", 10))
         self.quality_var = StringVar(value=APP_CONFIG["default_image_quality"])
-        self.quality_menu = OptionMenu(self.quality_frame, self.quality_var, "standard", "hd")
+        self.quality_menu = self.create_styled_dropdown(self.quality_frame, self.quality_var, ["standard", "hd"])
         
         self.style_frame = Frame(size_frame)
         self.style_frame.pack(side="left")
         
         self.style_label = Label(self.style_frame, text="Style:", font=("Arial", 10))
         self.style_var = StringVar(value=APP_CONFIG["default_image_style"])
-        self.style_menu = OptionMenu(self.style_frame, self.style_var, "vivid", "natural")
+        self.style_menu = self.create_styled_dropdown(self.style_frame, self.style_var, ["vivid", "natural"])
         
         # Model info label
         self.model_label = Label(size_frame, text="Detecting model...", font=("Arial", 10, "italic"))
         self.model_label.pack(side="left", padx=(10, 0))
         
         # Generate button
-        generate_btn = Button(generation_frame, text="Generate Image", command=self.generate_image, bg="#4CAF50", fg="white", font=("Arial", 12), padx=20, pady=10)
+        generate_btn = self.create_styled_button(
+            generation_frame, 
+            text="Generate Image", 
+            command=self.generate_image, 
+            bg_color="#4CAF50", 
+            fg_color="white", 
+            font=("Arial", 12, "bold"), 
+            padx=20, 
+            pady=10
+        )
         generate_btn.pack(pady=20)
         
         # Image preview area - increase size to 800x800
@@ -230,7 +244,7 @@ class DALLEGeneratorApp:
             
             # Remove old size menu and create new one with updated sizes
             self.size_menu.destroy()
-            self.size_menu = OptionMenu(self.size_menu.master, self.size_var, *capabilities["sizes"])
+            self.size_menu = self.create_styled_dropdown(self.size_menu.master, self.size_var, capabilities["sizes"])
             self.size_menu.pack(side="left", padx=(0, 20))
             
             # Show/hide quality and style options based on model capabilities
@@ -450,25 +464,25 @@ class DALLEGeneratorApp:
             buttons_frame.pack(pady=(0, 10))
             
             # Add button to view in original resolution
-            view_original_btn = Button(
+            view_original_btn = self.create_styled_button(
                 buttons_frame, 
                 text="View Full Resolution", 
                 command=self.view_original_resolution,
-                bg="#4CAF50", 
-                fg="white", 
-                font=("Arial", 10),
+                bg_color="#4CAF50", 
+                fg_color="white", 
+                font=("Arial", 10, "bold"),
                 padx=10
             )
             view_original_btn.pack(side="left", padx=5)
             
             # Add button to open output directory
-            open_dir_btn = Button(
+            open_dir_btn = self.create_styled_button(
                 buttons_frame, 
                 text="Open Output Folder", 
                 command=self.open_output_directory,
-                bg="#2196F3", 
-                fg="white", 
-                font=("Arial", 10),
+                bg_color="#2196F3", 
+                fg_color="white", 
+                font=("Arial", 10, "bold"),
                 padx=10
             )
             open_dir_btn.pack(side="left", padx=5)
@@ -530,7 +544,16 @@ class DALLEGeneratorApp:
             canvas.config(scrollregion=canvas.bbox("all"))
             
             # Add close button
-            close_btn = Button(top, text="Close", command=top.destroy, padx=20)
+            close_btn = self.create_styled_button(
+                top, 
+                text="Close", 
+                command=top.destroy, 
+                bg_color="#f44336", 
+                fg_color="white", 
+                font=("Arial", 10, "bold"),
+                padx=20,
+                pady=8
+            )
             close_btn.pack(pady=10)
             
         except Exception as e:
@@ -658,7 +681,12 @@ class DALLEGeneratorApp:
         history_frame.pack(fill="both", expand=True)
         
         # Create sub-tabs for prompt history and generation history
-        history_notebook = ttk.Notebook(history_frame)
+        history_notebook = self.create_styled_notebook(
+            history_frame,
+            selected_bg_color="#2196F3",
+            selected_fg_color="white",
+            font=("Arial", 10)
+        )
         history_notebook.pack(fill="both", expand=True)
         
         # Create sub-tabs
@@ -687,7 +715,13 @@ class DALLEGeneratorApp:
         search_entry.pack(side="left", padx=(0, 10))
         
         # Search button
-        search_btn = Button(controls_frame, text="Search", command=self.search_prompts)
+        search_btn = self.create_styled_button(
+            controls_frame, 
+            text="Search", 
+            command=self.search_prompts,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
         search_btn.pack(side="left", padx=(0, 20))
         
         # Favorites only checkbox
@@ -696,11 +730,23 @@ class DALLEGeneratorApp:
         favorites_check.pack(side="left", padx=(0, 20))
         
         # Clear all prompts button
-        clear_all_btn = Button(controls_frame, text="Clear All", command=self.clear_all_prompts, bg="#ff6b6b", fg="white")
+        clear_all_btn = self.create_styled_button(
+            controls_frame, 
+            text="Clear All", 
+            command=self.clear_all_prompts, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
         clear_all_btn.pack(side="right", padx=(10, 0))
         
         # Refresh button
-        refresh_btn = Button(controls_frame, text="Refresh", command=self.search_prompts)
+        refresh_btn = self.create_styled_button(
+            controls_frame, 
+            text="Refresh", 
+            command=self.search_prompts,
+            bg_color="#9e9e9e",
+            fg_color="white"
+        )
         refresh_btn.pack(side="right")
         
         # Create a frame for the prompt list
@@ -731,13 +777,31 @@ class DALLEGeneratorApp:
         buttons_frame = Frame(details_frame)
         buttons_frame.pack(fill="x")
         
-        use_btn = Button(buttons_frame, text="Use Prompt", command=self.use_selected_prompt)
+        use_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Use Prompt", 
+            command=self.use_selected_prompt,
+            bg_color="#4CAF50",
+            fg_color="white"
+        )
         use_btn.pack(side="left", padx=(0, 10))
         
-        favorite_btn = Button(buttons_frame, text="Toggle Favorite", command=self.toggle_favorite_prompt)
+        favorite_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Toggle Favorite", 
+            command=self.toggle_favorite_prompt,
+            bg_color="#FFC107",
+            fg_color="black"
+        )
         favorite_btn.pack(side="left", padx=(0, 10))
         
-        delete_btn = Button(buttons_frame, text="Delete", command=self.delete_selected_prompt, bg="#ff6b6b", fg="white")
+        delete_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Delete", 
+            command=self.delete_selected_prompt, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
         delete_btn.pack(side="left", padx=(0, 10))
         
         # Load initial prompts
@@ -761,15 +825,33 @@ class DALLEGeneratorApp:
         date_to_entry.pack(side="left", padx=(0, 10))
         
         # Search button
-        search_btn = Button(controls_frame, text="Search", command=self.search_generations)
+        search_btn = self.create_styled_button(
+            controls_frame, 
+            text="Search", 
+            command=self.search_generations,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
         search_btn.pack(side="left", padx=(0, 20))
         
         # Clear all generations button
-        clear_all_btn = Button(controls_frame, text="Clear All", command=self.clear_all_generations, bg="#ff6b6b", fg="white")
+        clear_all_btn = self.create_styled_button(
+            controls_frame, 
+            text="Clear All", 
+            command=self.clear_all_generations, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
         clear_all_btn.pack(side="right", padx=(10, 0))
         
         # Refresh button
-        refresh_btn = Button(controls_frame, text="Refresh", command=self.search_generations)
+        refresh_btn = self.create_styled_button(
+            controls_frame, 
+            text="Refresh", 
+            command=self.search_generations,
+            bg_color="#9e9e9e",
+            fg_color="white"
+        )
         refresh_btn.pack(side="right")
         
         # Create a frame for the generation list
@@ -800,13 +882,31 @@ class DALLEGeneratorApp:
         buttons_frame = Frame(details_frame)
         buttons_frame.pack(fill="x")
         
-        view_btn = Button(buttons_frame, text="View Image", command=self.view_selected_generation)
+        view_btn = self.create_styled_button(
+            buttons_frame, 
+            text="View Image", 
+            command=self.view_selected_generation,
+            bg_color="#4CAF50",
+            fg_color="white"
+        )
         view_btn.pack(side="left", padx=(0, 10))
         
-        use_prompt_btn = Button(buttons_frame, text="Use Prompt", command=self.use_selected_generation_prompt)
+        use_prompt_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Use Prompt", 
+            command=self.use_selected_generation_prompt,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
         use_prompt_btn.pack(side="left", padx=(0, 10))
         
-        delete_btn = Button(buttons_frame, text="Delete", command=self.delete_selected_generation, bg="#ff6b6b", fg="white")
+        delete_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Delete", 
+            command=self.delete_selected_generation, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
         delete_btn.pack(side="left", padx=(0, 10))
         
         # Load initial generations
@@ -1188,6 +1288,128 @@ class DALLEGeneratorApp:
         except Exception as e:
             logger.error(f"Error deleting all generations: {str(e)}")
             messagebox.showerror("Error", f"Failed to delete all generations: {str(e)}")
+
+    def create_styled_button(self, parent, text, command, bg_color="#4CAF50", fg_color="white", hover_color=None, font=("Arial", 10), padx=10, pady=5, width=None, height=None, border_radius=5):
+        """Create a styled button with hover effect.
+        
+        Args:
+            parent: Parent widget
+            text: Button text
+            command: Button command
+            bg_color: Background color
+            fg_color: Foreground (text) color
+            hover_color: Color when hovered (defaults to darker version of bg_color)
+            font: Button font
+            padx: Horizontal padding
+            pady: Vertical padding
+            width: Button width
+            height: Button height
+            border_radius: Border radius for rounded corners
+            
+        Returns:
+            Button widget
+        """
+        if hover_color is None:
+            # Create a darker version of the background color for hover
+            r, g, b = parent.winfo_rgb(bg_color)
+            r = max(0, int(r / 65535 * 0.8 * 65535))
+            g = max(0, int(g / 65535 * 0.8 * 65535))
+            b = max(0, int(b / 65535 * 0.8 * 65535))
+            hover_color = f"#{r:04x}{g:04x}{b:04x}"
+        
+        button = Button(parent, text=text, command=command, bg=bg_color, fg=fg_color, 
+                       font=font, padx=padx, pady=pady, width=width, height=height,
+                       relief="flat", borderwidth=0)
+        
+        # Add hover effect
+        def on_enter(e):
+            button['background'] = hover_color
+            
+        def on_leave(e):
+            button['background'] = bg_color
+            
+        button.bind("<Enter>", on_enter)
+        button.bind("<Leave>", on_leave)
+        
+        return button
+
+    def create_styled_dropdown(self, parent, variable, options, bg_color="#FFFFFF", fg_color="#333333", 
+                              hover_color="#F0F0F0", font=("Arial", 10), width=None, padx=5, pady=2):
+        """Create a styled dropdown (OptionMenu) with hover effect.
+        
+        Args:
+            parent: Parent widget
+            variable: StringVar to store the selected value
+            options: List of options for the dropdown
+            bg_color: Background color
+            fg_color: Foreground (text) color
+            hover_color: Color when hovered
+            font: Dropdown font
+            width: Dropdown width
+            padx: Horizontal padding
+            pady: Vertical padding
+            
+        Returns:
+            OptionMenu widget
+        """
+        # Create the OptionMenu
+        dropdown = OptionMenu(parent, variable, *options)
+        
+        # Configure the dropdown style
+        dropdown.config(
+            font=font,
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=hover_color,
+            activeforeground=fg_color,
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground="#CCCCCC",
+            padx=padx,
+            pady=pady,
+            width=width
+        )
+        
+        # Configure the dropdown menu style
+        dropdown["menu"].config(
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=hover_color,
+            activeforeground=fg_color,
+            relief="flat",
+            borderwidth=0,
+            font=font
+        )
+        
+        return dropdown
+        
+    def create_styled_notebook(self, parent, tab_bg_color="#f0f0f0", tab_fg_color="#333333", 
+                              selected_bg_color="#4CAF50", selected_fg_color="white", 
+                              font=("Arial", 10)):
+        """Create a styled notebook (tabbed interface)."""
+        # Create a simple notebook
+        notebook = ttk.Notebook(parent)
+        
+        # Configure the style
+        style = ttk.Style()
+        
+        # Configure tab appearance with high contrast colors
+        style.configure('TNotebook', background='white')
+        style.configure('TNotebook.Tab', 
+                       background=tab_bg_color,
+                       foreground='black',  # Force black text for visibility
+                       font=font, 
+                       padding=[10, 5],
+                       borderwidth=1)
+        
+        # Map states to different appearances with high contrast
+        style.map('TNotebook.Tab',
+                 background=[("selected", selected_bg_color)],
+                 foreground=[("selected", "black")],  # Force black text for visibility
+                 expand=[("selected", [1, 1, 1, 0])])
+        
+        return notebook
 
 if __name__ == "__main__":
     root = tk.Tk()

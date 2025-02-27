@@ -2,12 +2,15 @@ import os
 import logging
 import tkinter as tk
 from tkinter import messagebox, Text, Frame, Label, Button, StringVar, OptionMenu, filedialog, simpledialog
+import tkinter.ttk as ttk
 from PIL import Image, ImageTk
 from io import BytesIO
 from dotenv import load_dotenv
 from utils.openai_client import OpenAIClient
 from utils.file_manager import FileManager
 from utils.usage_tracker import UsageTracker
+from utils.database_manager import DatabaseManager
+from utils.data_models import Prompt, Generation
 from config import APP_CONFIG, ensure_directories
 from datetime import datetime
 
@@ -46,40 +49,27 @@ class DALLEGeneratorApp:
         
         # API key status
         if self.api_key:
-            api_status = tk.Label(self.root, text="API Key: ✓ Loaded", fg="green", font=("Arial", 12))
+            status_label = tk.Label(self.root, text="API Key: ✓ Connected", fg="green", font=("Arial", 10))
         else:
-            api_status = tk.Label(self.root, text="API Key: ✗ Not found", fg="red", font=("Arial", 12))
-        api_status.pack(pady=10)
+            status_label = tk.Label(self.root, text="API Key: ✗ Not Found", fg="red", font=("Arial", 10))
+        status_label.pack()
         
-        # Add button to test API key
-        test_key_btn = tk.Button(self.root, text="Test API Key", command=self.test_api_key)
-        test_key_btn.pack(pady=10)
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Add button to update API key
-        update_key_btn = tk.Button(self.root, text="Update API Key", command=self.show_api_key_dialog)
-        update_key_btn.pack(pady=10)
+        # Create tabs
+        self.generation_tab = tk.Frame(self.notebook)
+        self.history_tab = tk.Frame(self.notebook)
         
-        # Add verification status section
-        verification_frame = tk.LabelFrame(self.root, text="Phase 1 Verification", padx=10, pady=10)
-        verification_frame.pack(pady=20, padx=20, fill="x")
+        self.notebook.add(self.generation_tab, text="Generate Images")
+        self.notebook.add(self.history_tab, text="History")
         
-        # Check project structure
-        structure_label = tk.Label(verification_frame, text="Project Structure: Checking...", font=("Arial", 10))
-        structure_label.pack(anchor="w", pady=5)
-        
-        # Check configuration
-        config_label = tk.Label(verification_frame, text="Configuration: Checking...", font=("Arial", 10))
-        config_label.pack(anchor="w", pady=5)
-        
-        # Check utility modules
-        utils_label = tk.Label(verification_frame, text="Utility Modules: Checking...", font=("Arial", 10))
-        utils_label.pack(anchor="w", pady=5)
-        
-        # Run verification
-        self.run_verification(structure_label, config_label, utils_label)
-        
-        # Add image generation section
+        # Setup image generation UI in the generation tab
         self.setup_image_generation_ui()
+        
+        # Setup history UI in the history tab
+        self.setup_history_ui()
     
     def show_api_key_dialog(self):
         dialog = tk.Toplevel(self.root)
@@ -148,7 +138,7 @@ class DALLEGeneratorApp:
     def setup_image_generation_ui(self):
         """Set up the image generation UI components."""
         # Create a frame for image generation
-        generation_frame = Frame(self.root, padx=20, pady=20)
+        generation_frame = Frame(self.generation_tab, padx=20, pady=20)
         generation_frame.pack(fill="both", expand=True)
         
         # Prompt input
@@ -207,6 +197,7 @@ class DALLEGeneratorApp:
         self.openai_client = None
         self.file_manager = None
         self.usage_tracker = None
+        self.db_manager = None
         self.current_image = None
         
         # Initialize clients if API key is available
@@ -215,6 +206,7 @@ class DALLEGeneratorApp:
                 self.openai_client = OpenAIClient()
                 self.file_manager = FileManager()
                 self.usage_tracker = UsageTracker()
+                self.db_manager = DatabaseManager()
                 # Update UI based on model capabilities
                 self.update_ui_for_model()
             except Exception as e:
@@ -275,6 +267,7 @@ class DALLEGeneratorApp:
                 self.openai_client = OpenAIClient()
                 self.file_manager = FileManager()
                 self.usage_tracker = UsageTracker()
+                self.db_manager = DatabaseManager()
                 # Update UI based on model capabilities
                 self.update_ui_for_model()
             except Exception as e:
@@ -292,6 +285,14 @@ class DALLEGeneratorApp:
         # Update UI to show loading state
         self.preview_label.config(text="Generating image... Please wait.")
         self.root.update()
+        
+        # Add prompt to database
+        try:
+            prompt_id = self.db_manager.add_prompt(prompt)
+            logger.info(f"Added prompt to database with ID: {prompt_id}")
+        except Exception as e:
+            logger.error(f"Error adding prompt to database: {str(e)}")
+            prompt_id = None
         
         # Generate image
         try:
@@ -349,6 +350,32 @@ class DALLEGeneratorApp:
                     if output_path and os.path.exists(output_path):
                         file_size = os.path.getsize(output_path)
                         logger.info(f"Image auto-saved successfully to {output_path}, size: {file_size} bytes")
+                        
+                        # Record generation in database
+                        if prompt_id is not None and self.db_manager:
+                            try:
+                                # Prepare parameters for database
+                                parameters = {
+                                    "size": size,
+                                    "model": usage_info.get("model", "unknown")
+                                }
+                                if quality:
+                                    parameters["quality"] = quality
+                                if style:
+                                    parameters["style"] = style
+                                
+                                # Add generation to database
+                                generation_id = self.db_manager.add_generation(
+                                    prompt_id=prompt_id,
+                                    image_path=output_path,
+                                    parameters=parameters,
+                                    token_usage=usage_info["estimated_tokens"],
+                                    cost=usage_info["estimated_tokens"] * 0.00002,
+                                    description=f"auto_saved_{timestamp}"
+                                )
+                                logger.info(f"Added generation to database with ID: {generation_id}")
+                            except Exception as e:
+                                logger.error(f"Error recording generation in database: {str(e)}")
                         
                         # Show success message with the saved path
                         messagebox.showinfo("Success", f"Image generated and saved to:\n{output_path}")
@@ -513,6 +540,406 @@ class DALLEGeneratorApp:
             # Log the full exception traceback
             import traceback
             logger.error(f"Exception traceback: {traceback.format_exc()}")
+
+    def setup_history_ui(self):
+        """Set up the history UI components for prompt and generation history."""
+        # Create a frame for history
+        history_frame = Frame(self.history_tab, padx=20, pady=20)
+        history_frame.pack(fill="both", expand=True)
+        
+        # Create sub-tabs for prompt history and generation history
+        history_notebook = ttk.Notebook(history_frame)
+        history_notebook.pack(fill="both", expand=True)
+        
+        # Create sub-tabs
+        prompt_history_tab = Frame(history_notebook)
+        generation_history_tab = Frame(history_notebook)
+        
+        history_notebook.add(prompt_history_tab, text="Prompt History")
+        history_notebook.add(generation_history_tab, text="Generation History")
+        
+        # Setup prompt history UI
+        self.setup_prompt_history_ui(prompt_history_tab)
+        
+        # Setup generation history UI
+        self.setup_generation_history_ui(generation_history_tab)
+    
+    def setup_prompt_history_ui(self, parent_frame):
+        """Set up the prompt history UI components."""
+        # Create a frame for controls
+        controls_frame = Frame(parent_frame, padx=10, pady=10)
+        controls_frame.pack(fill="x")
+        
+        # Search box
+        Label(controls_frame, text="Search:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.prompt_search_var = StringVar()
+        search_entry = tk.Entry(controls_frame, textvariable=self.prompt_search_var, width=30)
+        search_entry.pack(side="left", padx=(0, 10))
+        
+        # Search button
+        search_btn = Button(controls_frame, text="Search", command=self.search_prompts)
+        search_btn.pack(side="left", padx=(0, 20))
+        
+        # Favorites only checkbox
+        self.favorites_only_var = tk.BooleanVar(value=False)
+        favorites_check = tk.Checkbutton(controls_frame, text="Favorites Only", variable=self.favorites_only_var, command=self.search_prompts)
+        favorites_check.pack(side="left", padx=(0, 20))
+        
+        # Refresh button
+        refresh_btn = Button(controls_frame, text="Refresh", command=self.search_prompts)
+        refresh_btn.pack(side="right")
+        
+        # Create a frame for the prompt list
+        list_frame = Frame(parent_frame, padx=10, pady=10)
+        list_frame.pack(fill="both", expand=True)
+        
+        # Create a listbox with scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.prompt_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10), height=15)
+        self.prompt_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.prompt_listbox.yview)
+        
+        # Bind selection event
+        self.prompt_listbox.bind('<<ListboxSelect>>', self.on_prompt_selected)
+        
+        # Create a frame for prompt details
+        details_frame = Frame(parent_frame, padx=10, pady=10)
+        details_frame.pack(fill="x")
+        
+        # Prompt text
+        Label(details_frame, text="Prompt:", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.selected_prompt_text = Text(details_frame, height=3, width=60, wrap="word")
+        self.selected_prompt_text.pack(fill="x", pady=(0, 10))
+        
+        # Action buttons
+        buttons_frame = Frame(details_frame)
+        buttons_frame.pack(fill="x")
+        
+        use_btn = Button(buttons_frame, text="Use Prompt", command=self.use_selected_prompt)
+        use_btn.pack(side="left", padx=(0, 10))
+        
+        favorite_btn = Button(buttons_frame, text="Toggle Favorite", command=self.toggle_favorite_prompt)
+        favorite_btn.pack(side="left", padx=(0, 10))
+        
+        # Load initial prompts
+        self.search_prompts()
+    
+    def setup_generation_history_ui(self, parent_frame):
+        """Set up the generation history UI components."""
+        # Create a frame for controls
+        controls_frame = Frame(parent_frame, padx=10, pady=10)
+        controls_frame.pack(fill="x")
+        
+        # Date range
+        Label(controls_frame, text="From:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.date_from_var = StringVar()
+        date_from_entry = tk.Entry(controls_frame, textvariable=self.date_from_var, width=10)
+        date_from_entry.pack(side="left", padx=(0, 10))
+        
+        Label(controls_frame, text="To:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.date_to_var = StringVar()
+        date_to_entry = tk.Entry(controls_frame, textvariable=self.date_to_var, width=10)
+        date_to_entry.pack(side="left", padx=(0, 10))
+        
+        # Search button
+        search_btn = Button(controls_frame, text="Search", command=self.search_generations)
+        search_btn.pack(side="left", padx=(0, 20))
+        
+        # Refresh button
+        refresh_btn = Button(controls_frame, text="Refresh", command=self.search_generations)
+        refresh_btn.pack(side="right")
+        
+        # Create a frame for the generation list
+        list_frame = Frame(parent_frame, padx=10, pady=10)
+        list_frame.pack(fill="both", expand=True)
+        
+        # Create a listbox with scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.generation_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10), height=15)
+        self.generation_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.generation_listbox.yview)
+        
+        # Bind selection event
+        self.generation_listbox.bind('<<ListboxSelect>>', self.on_generation_selected)
+        
+        # Create a frame for generation details
+        details_frame = Frame(parent_frame, padx=10, pady=10)
+        details_frame.pack(fill="x")
+        
+        # Generation details
+        Label(details_frame, text="Details:", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.generation_details_text = Text(details_frame, height=5, width=60, wrap="word")
+        self.generation_details_text.pack(fill="x", pady=(0, 10))
+        
+        # Action buttons
+        buttons_frame = Frame(details_frame)
+        buttons_frame.pack(fill="x")
+        
+        view_btn = Button(buttons_frame, text="View Image", command=self.view_selected_generation)
+        view_btn.pack(side="left", padx=(0, 10))
+        
+        use_prompt_btn = Button(buttons_frame, text="Use Prompt", command=self.use_selected_generation_prompt)
+        use_prompt_btn.pack(side="left", padx=(0, 10))
+        
+        # Load initial generations
+        self.search_generations()
+    
+    def search_prompts(self):
+        """Search for prompts based on current filters."""
+        if not self.db_manager:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
+                return
+        
+        try:
+            # Get search parameters
+            search_term = self.prompt_search_var.get().strip()
+            favorites_only = self.favorites_only_var.get()
+            
+            # Get prompts from database
+            prompts = self.db_manager.get_prompt_history(
+                limit=50,
+                search=search_term if search_term else None,
+                favorites_only=favorites_only
+            )
+            
+            # Clear listbox
+            self.prompt_listbox.delete(0, tk.END)
+            
+            # Store prompt IDs in a list for reference
+            self.prompt_ids = []
+            
+            # Add prompts to listbox
+            for prompt in prompts:
+                # Format display text
+                display_text = f"{prompt['prompt_text'][:50]}{'...' if len(prompt['prompt_text']) > 50 else ''}"
+                if prompt['favorite']:
+                    display_text = "★ " + display_text
+                
+                # Store the prompt ID in our list
+                self.prompt_ids.append(prompt['id'])
+                
+                # Add to listbox
+                self.prompt_listbox.insert(tk.END, display_text)
+            
+            if not prompts:
+                self.prompt_listbox.insert(tk.END, "No prompts found")
+                self.prompt_ids = []
+        except Exception as e:
+            logger.error(f"Error searching prompts: {str(e)}")
+            messagebox.showerror("Error", f"Failed to search prompts: {str(e)}")
+    
+    def on_prompt_selected(self, event):
+        """Handle prompt selection event."""
+        if not self.db_manager or not hasattr(self, 'prompt_ids'):
+            return
+        
+        # Get selected index
+        selection = self.prompt_listbox.curselection()
+        if not selection or not self.prompt_ids:
+            return
+        
+        # Get prompt ID from our list
+        try:
+            index = selection[0]
+            if index >= len(self.prompt_ids):
+                return
+            
+            prompt_id = self.prompt_ids[index]
+            
+            # Get prompt from database
+            prompts = self.db_manager.get_prompt_history(limit=1, prompt_id=prompt_id)
+            if not prompts:
+                return
+            
+            prompt = prompts[0]
+            
+            # Update prompt text
+            self.selected_prompt_text.delete("1.0", tk.END)
+            self.selected_prompt_text.insert("1.0", prompt['prompt_text'])
+            
+            # Store selected prompt ID
+            self.selected_prompt_id = prompt['id']
+        except Exception as e:
+            logger.error(f"Error getting prompt details: {str(e)}")
+    
+    def use_selected_prompt(self):
+        """Use the selected prompt for image generation."""
+        # Get prompt text
+        prompt_text = self.selected_prompt_text.get("1.0", "end-1c").strip()
+        if not prompt_text:
+            return
+        
+        # Set prompt in generation tab
+        self.notebook.select(0)  # Switch to generation tab
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", prompt_text)
+    
+    def toggle_favorite_prompt(self):
+        """Toggle favorite status of the selected prompt."""
+        if not hasattr(self, 'selected_prompt_id') or not self.db_manager:
+            return
+        
+        try:
+            # Get current prompt
+            prompts = self.db_manager.get_prompt_history(limit=1, prompt_id=self.selected_prompt_id)
+            if not prompts:
+                return
+            
+            prompt = prompts[0]
+            
+            # Toggle favorite status
+            new_favorite = not prompt['favorite']
+            
+            # Update in database
+            self.db_manager.update_prompt(self.selected_prompt_id, favorite=new_favorite)
+            
+            # Refresh prompt list
+            self.search_prompts()
+            
+            # Show confirmation
+            status = "added to" if new_favorite else "removed from"
+            messagebox.showinfo("Success", f"Prompt {status} favorites")
+        except Exception as e:
+            logger.error(f"Error toggling favorite: {str(e)}")
+            messagebox.showerror("Error", f"Failed to update favorite status: {str(e)}")
+    
+    def search_generations(self):
+        """Search for generations based on current filters."""
+        if not self.db_manager:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
+                return
+        
+        try:
+            # Get date parameters
+            date_from = self.date_from_var.get().strip()
+            date_to = self.date_to_var.get().strip()
+            
+            # Get generations from database
+            generations = self.db_manager.get_generation_history(
+                limit=50,
+                date_from=date_from if date_from else None,
+                date_to=date_to if date_to else None
+            )
+            
+            # Clear listbox
+            self.generation_listbox.delete(0, tk.END)
+            
+            # Store generation IDs in a list for reference
+            self.generation_ids = []
+            
+            # Add generations to listbox
+            for gen in generations:
+                # Format display text
+                date_str = gen['generation_date'].split('T')[0]
+                prompt_text = gen['prompt_text'] if gen['prompt_text'] else "Unknown prompt"
+                display_text = f"{date_str}: {prompt_text[:50]}{'...' if len(prompt_text) > 50 else ''}"
+                
+                # Store the generation ID in our list
+                self.generation_ids.append(gen['id'])
+                
+                # Add to listbox
+                self.generation_listbox.insert(tk.END, display_text)
+            
+            if not generations:
+                self.generation_listbox.insert(tk.END, "No generations found")
+                self.generation_ids = []
+        except Exception as e:
+            logger.error(f"Error searching generations: {str(e)}")
+            messagebox.showerror("Error", f"Failed to search generations: {str(e)}")
+    
+    def on_generation_selected(self, event):
+        """Handle generation selection event."""
+        if not self.db_manager or not hasattr(self, 'generation_ids'):
+            return
+        
+        # Get selected index
+        selection = self.generation_listbox.curselection()
+        if not selection or not self.generation_ids:
+            return
+        
+        # Get generation ID from our list
+        try:
+            index = selection[0]
+            if index >= len(self.generation_ids):
+                return
+            
+            generation_id = self.generation_ids[index]
+            
+            # Get generation from database
+            generations = self.db_manager.get_generation_history(limit=1, generation_id=generation_id)
+            if not generations:
+                return
+            
+            generation = generations[0]
+            
+            # Update generation details
+            self.generation_details_text.delete("1.0", tk.END)
+            
+            # Format details
+            details = f"Date: {generation['generation_date']}\n"
+            details += f"Prompt: {generation['prompt_text']}\n"
+            details += f"Image: {generation['image_path']}\n"
+            
+            if generation['parameters']:
+                params = generation['parameters']
+                details += f"Size: {params.get('size', 'Unknown')}\n"
+                details += f"Model: {params.get('model', 'Unknown')}\n"
+                if 'quality' in params:
+                    details += f"Quality: {params['quality']}\n"
+                if 'style' in params:
+                    details += f"Style: {params['style']}\n"
+            
+            details += f"Tokens: {generation['token_usage']}\n"
+            details += f"Cost: ${generation['cost']:.4f}\n"
+            
+            self.generation_details_text.insert("1.0", details)
+            
+            # Store selected generation
+            self.selected_generation = generation
+        except Exception as e:
+            logger.error(f"Error getting generation details: {str(e)}")
+    
+    def view_selected_generation(self):
+        """View the selected generation's image."""
+        if not hasattr(self, 'selected_generation'):
+            return
+        
+        image_path = self.selected_generation['image_path']
+        if not image_path or not os.path.exists(image_path):
+            messagebox.showerror("Error", "Image file not found")
+            return
+        
+        try:
+            # Open the image with the default image viewer
+            os.startfile(image_path)
+        except Exception as e:
+            logger.error(f"Error opening image: {str(e)}")
+            messagebox.showerror("Error", f"Failed to open image: {str(e)}")
+    
+    def use_selected_generation_prompt(self):
+        """Use the prompt from the selected generation for a new image."""
+        if not hasattr(self, 'selected_generation'):
+            return
+        
+        prompt_text = self.selected_generation['prompt_text']
+        if not prompt_text:
+            messagebox.showerror("Error", "No prompt text available")
+            return
+        
+        # Set prompt in generation tab
+        self.notebook.select(0)  # Switch to generation tab
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", prompt_text)
 
 if __name__ == "__main__":
     root = tk.Tk()

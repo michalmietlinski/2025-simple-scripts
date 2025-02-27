@@ -219,6 +219,9 @@ class DatabaseManager:
             if favorites_only:
                 where_clauses.append("favorite = 1")
             
+            # Exclude prompts marked as deleted
+            where_clauses.append("prompt_text NOT LIKE '[DELETED]%'")
+            
             if tags:
                 # For each tag, check if it's in the comma-separated tags field
                 tag_clauses = []
@@ -648,31 +651,135 @@ class DatabaseManager:
             raise
     
     def get_total_usage(self):
-        """Get total usage statistics.
-        
-        Returns:
-            dict: Dictionary with total tokens, cost, and generations
-        """
+        """Get total usage statistics."""
         try:
-            self.cursor.execute(
-                """
-                SELECT 
-                    SUM(total_tokens) as total_tokens,
-                    SUM(total_cost) as total_cost,
-                    SUM(generations_count) as total_generations
+            query = """
+                SELECT SUM(total_tokens) as total_tokens, 
+                       SUM(total_cost) as total_cost,
+                       COUNT(*) as total_days,
+                       (SELECT COUNT(*) FROM generation_history) as total_generations
                 FROM usage_stats
-                """
-            )
+            """
+            self.cursor.execute(query)
             result = self.cursor.fetchone()
             
             if result:
-                return dict(result)
+                return {
+                    "total_tokens": result["total_tokens"] or 0,
+                    "total_cost": result["total_cost"] or 0,
+                    "total_days": result["total_days"] or 0,
+                    "total_generations": result["total_generations"] or 0
+                }
             else:
                 return {
-                    'total_tokens': 0,
-                    'total_cost': 0,
-                    'total_generations': 0
+                    "total_tokens": 0,
+                    "total_cost": 0,
+                    "total_days": 0,
+                    "total_generations": 0
                 }
         except sqlite3.Error as e:
-            logger.error(f"Error retrieving total usage: {str(e)}")
-            raise 
+            logger.error(f"Error getting total usage: {str(e)}")
+            return {
+                "total_tokens": 0,
+                "total_cost": 0,
+                "total_days": 0,
+                "total_generations": 0
+            }
+    
+    def delete_prompt(self, prompt_id):
+        """Delete a prompt from the database.
+        
+        Args:
+            prompt_id (int): ID of the prompt to delete
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Delete the prompt regardless of whether there are generations
+            self.cursor.execute("DELETE FROM prompt_history WHERE id = ?", (prompt_id,))
+            
+            self.conn.commit()
+            logger.info(f"Deleted prompt with ID: {prompt_id}")
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error deleting prompt: {str(e)}")
+            return False
+    
+    def delete_generation(self, generation_id):
+        """Delete a generation from the database.
+        
+        Args:
+            generation_id (int): ID of the generation to delete
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Get the image path before deleting
+            self.cursor.execute("SELECT image_path FROM generation_history WHERE id = ?", (generation_id,))
+            result = self.cursor.fetchone()
+            
+            if result and result["image_path"]:
+                # Try to delete the image file
+                try:
+                    if os.path.exists(result["image_path"]):
+                        os.remove(result["image_path"])
+                        logger.info(f"Deleted image file: {result['image_path']}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete image file: {str(e)}")
+            
+            # Delete the generation record
+            self.cursor.execute("DELETE FROM generation_history WHERE id = ?", (generation_id,))
+            self.conn.commit()
+            logger.info(f"Deleted generation with ID: {generation_id}")
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error deleting generation: {str(e)}")
+            return False
+    
+    def clear_all_prompts(self):
+        """Delete all prompts from the database.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Delete all prompts
+            self.cursor.execute("DELETE FROM prompt_history")
+            
+            self.conn.commit()
+            logger.info("Cleared all prompts")
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error clearing prompts: {str(e)}")
+            return False
+    
+    def clear_all_generations(self):
+        """Delete all generations from the database.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Get all image paths before deleting
+            self.cursor.execute("SELECT image_path FROM generation_history")
+            results = self.cursor.fetchall()
+            
+            # Try to delete all image files
+            for result in results:
+                if result and result["image_path"]:
+                    try:
+                        if os.path.exists(result["image_path"]):
+                            os.remove(result["image_path"])
+                    except Exception as e:
+                        logger.warning(f"Failed to delete image file: {str(e)}")
+            
+            # Delete all generation records
+            self.cursor.execute("DELETE FROM generation_history")
+            self.conn.commit()
+            logger.info("Cleared all generations")
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error clearing generations: {str(e)}")
+            return False 

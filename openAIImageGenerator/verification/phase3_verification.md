@@ -66,4 +66,6 @@ After automated verification passes, you should manually test the application to
 1. Prompts are saved to the database when generating images
 2. The history UI correctly displays saved prompts and generations
 3. Favorite and search functionality works as expected
-4. Usage statistics are properly tracked and displayed 
+4. Usage statistics are properly tracked and displayed
+5. Delete functionality works for individual prompts and generations
+6. Clear all functionality works for both prompt and generation history 

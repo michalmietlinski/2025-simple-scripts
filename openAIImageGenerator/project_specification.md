@@ -196,7 +196,8 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
 - [ ] Create import/export features
 - [ ] Implement template prompt creation interface
 - [ ] Add variable collection management
-- **Checkpoint 6**: Test prompt management features
+- [x] Add delete/clear functionality for prompts and generations
+**Checkpoint 6**: Test prompt management features
 
 ### Phase 7: Advanced Features and Refinement (Days 15-17)
 - [x] Implement usage statistics dashboard

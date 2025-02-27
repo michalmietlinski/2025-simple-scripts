@@ -695,6 +695,10 @@ class DALLEGeneratorApp:
         favorites_check = tk.Checkbutton(controls_frame, text="Favorites Only", variable=self.favorites_only_var, command=self.search_prompts)
         favorites_check.pack(side="left", padx=(0, 20))
         
+        # Clear all prompts button
+        clear_all_btn = Button(controls_frame, text="Clear All", command=self.clear_all_prompts, bg="#ff6b6b", fg="white")
+        clear_all_btn.pack(side="right", padx=(10, 0))
+        
         # Refresh button
         refresh_btn = Button(controls_frame, text="Refresh", command=self.search_prompts)
         refresh_btn.pack(side="right")
@@ -733,6 +737,9 @@ class DALLEGeneratorApp:
         favorite_btn = Button(buttons_frame, text="Toggle Favorite", command=self.toggle_favorite_prompt)
         favorite_btn.pack(side="left", padx=(0, 10))
         
+        delete_btn = Button(buttons_frame, text="Delete", command=self.delete_selected_prompt, bg="#ff6b6b", fg="white")
+        delete_btn.pack(side="left", padx=(0, 10))
+        
         # Load initial prompts
         self.search_prompts()
     
@@ -756,6 +763,10 @@ class DALLEGeneratorApp:
         # Search button
         search_btn = Button(controls_frame, text="Search", command=self.search_generations)
         search_btn.pack(side="left", padx=(0, 20))
+        
+        # Clear all generations button
+        clear_all_btn = Button(controls_frame, text="Clear All", command=self.clear_all_generations, bg="#ff6b6b", fg="white")
+        clear_all_btn.pack(side="right", padx=(10, 0))
         
         # Refresh button
         refresh_btn = Button(controls_frame, text="Refresh", command=self.search_generations)
@@ -794,6 +805,9 @@ class DALLEGeneratorApp:
         
         use_prompt_btn = Button(buttons_frame, text="Use Prompt", command=self.use_selected_generation_prompt)
         use_prompt_btn.pack(side="left", padx=(0, 10))
+        
+        delete_btn = Button(buttons_frame, text="Delete", command=self.delete_selected_generation, bg="#ff6b6b", fg="white")
+        delete_btn.pack(side="left", padx=(0, 10))
         
         # Load initial generations
         self.search_generations()
@@ -1050,6 +1064,130 @@ class DALLEGeneratorApp:
         self.notebook.select(0)  # Switch to generation tab
         self.prompt_text.delete("1.0", tk.END)
         self.prompt_text.insert("1.0", prompt_text)
+
+    def delete_selected_prompt(self):
+        """Delete the selected prompt from the database."""
+        if not hasattr(self, 'selected_prompt_id') or not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this prompt?"):
+                return
+            
+            # Delete from database
+            success = self.db_manager.delete_prompt(self.selected_prompt_id)
+            
+            if success:
+                # Refresh prompt list
+                self.search_prompts()
+                
+                # Clear selection
+                self.selected_prompt_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_prompt_id'):
+                    delattr(self, 'selected_prompt_id')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "Prompt deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete prompt")
+        except Exception as e:
+            logger.error(f"Error deleting prompt: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete prompt: {str(e)}")
+    
+    def clear_all_prompts(self):
+        """Clear all prompts from the database."""
+        if not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete All", 
+                                      "Are you sure you want to delete ALL prompts?\n\nThis action cannot be undone!",
+                                      icon='warning'):
+                return
+            
+            # Delete all prompts
+            success = self.db_manager.clear_all_prompts()
+            
+            if success:
+                # Refresh prompt list
+                self.search_prompts()
+                
+                # Clear selection
+                self.selected_prompt_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_prompt_id'):
+                    delattr(self, 'selected_prompt_id')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "All prompts deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete prompts")
+        except Exception as e:
+            logger.error(f"Error deleting all prompts: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete all prompts: {str(e)}")
+    
+    def delete_selected_generation(self):
+        """Delete the selected generation from the database."""
+        if not hasattr(self, 'selected_generation') or not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this generation?"):
+                return
+            
+            # Delete from database
+            success = self.db_manager.delete_generation(self.selected_generation['id'])
+            
+            if success:
+                # Refresh generation list
+                self.search_generations()
+                
+                # Clear selection
+                self.generation_details_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_generation'):
+                    delattr(self, 'selected_generation')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "Generation deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete generation")
+        except Exception as e:
+            logger.error(f"Error deleting generation: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete generation: {str(e)}")
+    
+    def clear_all_generations(self):
+        """Clear all generations from the database."""
+        if not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete All", 
+                                      "Are you sure you want to delete ALL generations?\n\nThis action cannot be undone!",
+                                      icon='warning'):
+                return
+            
+            # Delete all generations
+            success = self.db_manager.clear_all_generations()
+            
+            if success:
+                # Refresh generation list
+                self.search_generations()
+                
+                # Clear selection
+                self.generation_details_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_generation'):
+                    delattr(self, 'selected_generation')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "All generations deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete generations")
+        except Exception as e:
+            logger.error(f"Error deleting all generations: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete all generations: {str(e)}")
 
 if __name__ == "__main__":
     root = tk.Tk()

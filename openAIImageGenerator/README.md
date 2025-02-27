@@ -16,6 +16,7 @@ This application provides a user-friendly interface for generating images using 
 - **Usage Monitoring**: Track token usage and associated costs
 - **Full Resolution Viewing**: Examine generated images in their original resolution
 - **Output Directory Access**: Easily access saved images
+- **History Management**: Delete individual prompts/generations or clear entire history
 
 ## Project Structure
 
@@ -36,6 +37,10 @@ The project has been implemented in phases, each building upon the previous:
 2. **[Phase 2: OpenAI Integration](readmes/README_PHASE2.md)** - Integration with OpenAI API and image generation functionality
 3. **[Phase 3: Database Implementation](readmes/README_PHASE3.md)** - Database for storing prompts, generations, and usage statistics
 4. **[Phase 4: GUI Implementation](readmes/README_PHASE4.md)** - Comprehensive graphical user interface with advanced viewing options
+
+## Feature Documentation
+
+- **[Delete Functionality](readmes/README_DELETE_FUNCTIONALITY.md)** - Detailed documentation on the prompt and generation delete features
 
 ## Getting Started
 

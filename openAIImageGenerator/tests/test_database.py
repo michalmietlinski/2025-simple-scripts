@@ -90,6 +90,7 @@ def test_database():
     logger.info("Testing generation operations...")
     
     # Add generations
+    generation_ids = []
     for i in range(3):
         # Simulate image path
         image_path = f"outputs/2025-02-26/test_image_{i+1}.png"
@@ -113,6 +114,7 @@ def test_database():
             description=f"Test generation {i+1}"
         )
         
+        generation_ids.append(generation_id)
         logger.info(f"Added generation with ID: {generation_id}")
     
     # Complete the batch
@@ -139,6 +141,38 @@ def test_database():
     # Get total usage
     total = db_manager.get_total_usage()
     logger.info(f"Total usage: {total['total_tokens']} tokens, ${total['total_cost']:.4f}, {total['total_generations']} generations")
+    
+    # Test delete operations
+    logger.info("Testing delete operations...")
+    
+    # Delete a generation
+    if generation_ids:
+        success = db_manager.delete_generation(generation_ids[0])
+        logger.info(f"Deleted generation with ID {generation_ids[0]}: {success}")
+        
+        # Verify deletion
+        generations = db_manager.get_generation_history(limit=10)
+        logger.info(f"After deletion: {len(generations)} generations remaining")
+    
+    # Delete a prompt
+    success = db_manager.delete_prompt(prompt_id)
+    logger.info(f"Deleted prompt with ID {prompt_id}: {success}")
+    
+    # Verify deletion
+    prompts = db_manager.get_prompt_history(limit=10)
+    logger.info(f"After deletion: {len(prompts)} prompts remaining")
+    
+    # Test clear operations (commented out to avoid clearing all data during tests)
+    # Uncomment to test these functions
+    """
+    # Clear all generations
+    success = db_manager.clear_all_generations()
+    logger.info(f"Cleared all generations: {success}")
+    
+    # Clear all prompts
+    success = db_manager.clear_all_prompts()
+    logger.info(f"Cleared all prompts: {success}")
+    """
     
     # Close database connection
     db_manager.close()

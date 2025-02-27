@@ -4,7 +4,7 @@ This directory contains test files for the DALL-E Image Generator application.
 
 ## Test Files
 
-- **test_image_display.py**: Tests for the image display functionality, including full resolution viewing and output directory access
+- **test_image_display.py**: Tests for the image display functionality, including full resolution viewing, output directory access, and history management (delete/clear functionality)
 - **test_database.py**: Tests for the database implementation, including CRUD operations for prompts, generations, and usage statistics
 - **test_image_generation.py**: Tests for the image generation functionality using the OpenAI API
 - **test_openai_api.py**: Tests for the OpenAI API connection and authentication

@@ -4,6 +4,9 @@ import json
 import logging
 from dotenv import load_dotenv
 
+# Add parent directory to path to import app modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,

@@ -433,14 +433,127 @@ class DALLEGeneratorApp:
             # Convert to PhotoImage for Tkinter
             tk_image = ImageTk.PhotoImage(resized_image)
             
+            # Create a container frame for the image and buttons
+            container_frame = Frame(self.preview_frame, bg="#f0f0f0")
+            container_frame.pack(expand=True, fill="both")
+            
             # Create label to display image
-            image_label = Label(self.preview_frame, image=tk_image)
+            image_label = Label(container_frame, image=tk_image)
             image_label.image = tk_image  # Keep a reference to prevent garbage collection
-            image_label.pack(expand=True)
+            image_label.pack(expand=True, pady=(0, 10))
+            
+            # Store original image for full resolution view
+            self.original_image = image
+            
+            # Create buttons frame
+            buttons_frame = Frame(container_frame, bg="#f0f0f0")
+            buttons_frame.pack(pady=(0, 10))
+            
+            # Add button to view in original resolution
+            view_original_btn = Button(
+                buttons_frame, 
+                text="View Full Resolution", 
+                command=self.view_original_resolution,
+                bg="#4CAF50", 
+                fg="white", 
+                font=("Arial", 10),
+                padx=10
+            )
+            view_original_btn.pack(side="left", padx=5)
+            
+            # Add button to open output directory
+            open_dir_btn = Button(
+                buttons_frame, 
+                text="Open Output Folder", 
+                command=self.open_output_directory,
+                bg="#2196F3", 
+                fg="white", 
+                font=("Arial", 10),
+                padx=10
+            )
+            open_dir_btn.pack(side="left", padx=5)
             
         except Exception as e:
             logger.error(f"Error displaying image: {str(e)}")
             Label(self.preview_frame, text=f"Error displaying image: {str(e)}", bg="#f0f0f0").pack(expand=True)
+    
+    def view_original_resolution(self):
+        """Display the image in its original resolution in a new window."""
+        if not hasattr(self, 'original_image'):
+            messagebox.showerror("Error", "No image available")
+            return
+        
+        try:
+            # Create a new top-level window
+            top = tk.Toplevel(self.root)
+            top.title("Full Resolution Image")
+            
+            # Get screen dimensions
+            screen_width = top.winfo_screenwidth()
+            screen_height = top.winfo_screenheight()
+            
+            # Calculate window size (80% of screen size)
+            window_width = int(screen_width * 0.8)
+            window_height = int(screen_height * 0.8)
+            
+            # Set window size and position
+            top.geometry(f"{window_width}x{window_height}+{int(screen_width*0.1)}+{int(screen_height*0.1)}")
+            
+            # Create a canvas with scrollbars
+            canvas_frame = Frame(top)
+            canvas_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            h_scrollbar = tk.Scrollbar(canvas_frame, orient="horizontal")
+            v_scrollbar = tk.Scrollbar(canvas_frame)
+            
+            canvas = tk.Canvas(
+                canvas_frame, 
+                xscrollcommand=h_scrollbar.set,
+                yscrollcommand=v_scrollbar.set
+            )
+            
+            h_scrollbar.config(command=canvas.xview)
+            v_scrollbar.config(command=canvas.yview)
+            
+            h_scrollbar.pack(side="bottom", fill="x")
+            v_scrollbar.pack(side="right", fill="y")
+            canvas.pack(side="left", fill="both", expand=True)
+            
+            # Convert PIL Image to PhotoImage
+            tk_image = ImageTk.PhotoImage(self.original_image)
+            
+            # Add image to canvas
+            canvas.create_image(0, 0, image=tk_image, anchor="nw")
+            canvas.image = tk_image  # Keep a reference
+            
+            # Configure canvas scroll region
+            canvas.config(scrollregion=canvas.bbox("all"))
+            
+            # Add close button
+            close_btn = Button(top, text="Close", command=top.destroy, padx=20)
+            close_btn.pack(pady=10)
+            
+        except Exception as e:
+            logger.error(f"Error displaying original resolution: {str(e)}")
+            messagebox.showerror("Error", f"Failed to display image: {str(e)}")
+    
+    def open_output_directory(self):
+        """Open the output directory in file explorer."""
+        try:
+            if not self.file_manager:
+                self.file_manager = FileManager()
+            
+            # Get today's output directory
+            today_dir = self.file_manager.ensure_directories()
+            
+            # Open the directory
+            if os.path.exists(today_dir):
+                os.startfile(today_dir)
+            else:
+                messagebox.showerror("Error", "Output directory not found")
+        except Exception as e:
+            logger.error(f"Failed to open output directory: {str(e)}")
+            messagebox.showerror("Error", f"Failed to open output directory: {str(e)}")
 
     def save_image(self):
         """Save the current image."""
@@ -508,12 +621,16 @@ class DALLEGeneratorApp:
                 if os.path.exists(output_path):
                     file_size = os.path.getsize(output_path)
                     logger.info(f"Image saved successfully. File size: {file_size} bytes")
-                    messagebox.showinfo("Success", f"Image saved to: {output_path}")
-                    # Open the containing folder
-                    try:
-                        os.startfile(os.path.dirname(output_path))
-                    except Exception as e:
-                        logger.error(f"Failed to open containing folder: {str(e)}")
+                    
+                    # Show success message with option to open folder
+                    result = messagebox.askquestion("Success", 
+                                                   f"Image saved to: {output_path}\n\nDo you want to open the containing folder?",
+                                                   icon='info')
+                    if result == 'yes':
+                        try:
+                            os.startfile(os.path.dirname(output_path))
+                        except Exception as e:
+                            logger.error(f"Failed to open containing folder: {str(e)}")
                 else:
                     # Try to use the backup
                     backup_dir = os.path.dirname(output_path)
@@ -527,7 +644,16 @@ class DALLEGeneratorApp:
                         import shutil
                         shutil.copy2(backup_path, new_path)
                         logger.info(f"Used backup image to save to: {new_path}")
-                        messagebox.showinfo("Success (from backup)", f"Image saved to: {new_path}")
+                        
+                        # Show success message with option to open folder
+                        result = messagebox.askquestion("Success (from backup)", 
+                                                       f"Image saved to: {new_path}\n\nDo you want to open the containing folder?",
+                                                       icon='info')
+                        if result == 'yes':
+                            try:
+                                os.startfile(os.path.dirname(new_path))
+                            except Exception as e:
+                                logger.error(f"Failed to open containing folder: {str(e)}")
                     except Exception as e:
                         messagebox.showerror("Error", f"Failed to save image. File not found at: {output_path}")
                         logger.error(f"File not found after save attempt: {output_path}")

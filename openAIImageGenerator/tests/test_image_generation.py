@@ -1,6 +1,10 @@
 import os
 import sys
 import logging
+
+# Add parent directory to path to import app modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils.openai_client import OpenAIClient
 from utils.file_manager import FileManager
 from utils.usage_tracker import UsageTracker

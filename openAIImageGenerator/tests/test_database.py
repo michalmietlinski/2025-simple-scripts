@@ -2,6 +2,10 @@ import os
 import logging
 import sys
 from datetime import datetime
+
+# Add parent directory to path to import app modules
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils.database_manager import DatabaseManager
 from utils.data_models import Prompt, Generation, TemplateVariable, BatchGeneration, UsageStat
 

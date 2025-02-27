@@ -171,14 +171,18 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
 - [x] Set up template and batch generation tables
 - **Checkpoint 3**: ✅ Verify database operations with test data
 
-### Phase 4: Basic GUI Implementation (Days 7-9)
-- [ ] Create main application window
-- [ ] Implement prompt input interface
-- [ ] Add generation controls
-- [ ] Create image preview area
-- [ ] Add reference image upload interface
-- [ ] Implement settings menu
-- **Checkpoint 4**: Test basic GUI functionality
+### Phase 4: GUI Implementation
+- [x] Create main application window
+- [x] Implement prompt input interface
+- [x] Add generation controls
+- [x] Create image preview area
+- [x] Add reference image upload interface
+- [x] Implement settings menu
+- [x] Add full resolution image viewer
+- [x] Implement output directory access button
+
+**Checkpoint 4:** Verify basic GUI functionality with all components working together.
+- [x] Test all GUI components and ensure they interact correctly
 
 ### Phase 5: File Management (Days 10-11)
 - [ ] Implement date-based directory structure

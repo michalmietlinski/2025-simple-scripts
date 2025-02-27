@@ -116,6 +116,7 @@ def test_openai_api():
         return False
 
 if __name__ == "__main__":
-    logger.info("Starting OpenAI API test")
-    test_openai_api()
-    logger.info("OpenAI API test completed") 
+    print("Starting OpenAI API test...")
+    success = test_openai_api()
+    print(f"OpenAI API test {'succeeded' if success else 'failed'}")
+    sys.exit(0 if success else 1) 

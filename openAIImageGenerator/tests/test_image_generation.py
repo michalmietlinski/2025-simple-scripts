@@ -71,4 +71,5 @@ def main():
         return 1
 
 if __name__ == "__main__":
+    print("Running image generation test...")
     sys.exit(main()) 

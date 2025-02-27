@@ -14,6 +14,8 @@ This application provides a user-friendly interface for generating images using 
 - **History Tracking**: View and manage generation history
 - **Database Storage**: Store prompts, generations, and usage statistics
 - **Usage Monitoring**: Track token usage and associated costs
+- **Full Resolution Viewing**: Examine generated images in their original resolution
+- **Output Directory Access**: Easily access saved images
 
 ## Project Structure
 
@@ -24,6 +26,7 @@ The project is organized into the following directories:
 - `data/`: Database and configuration files
 - `verification/`: Scripts for verifying implementation phases
 - `readmes/`: Detailed documentation for each phase
+- `tests/`: Test files for various components of the application
 
 ## Implementation Phases
 
@@ -32,6 +35,7 @@ The project has been implemented in phases, each building upon the previous:
 1. **[Phase 1: Project Setup](readmes/README_PHASE1.md)** - Basic application structure, configuration management, and utility modules
 2. **[Phase 2: OpenAI Integration](readmes/README_PHASE2.md)** - Integration with OpenAI API and image generation functionality
 3. **[Phase 3: Database Implementation](readmes/README_PHASE3.md)** - Database for storing prompts, generations, and usage statistics
+4. **[Phase 4: GUI Implementation](readmes/README_PHASE4.md)** - Comprehensive graphical user interface with advanced viewing options
 
 ## Getting Started
 
@@ -54,6 +58,15 @@ The project has been implemented in phases, each building upon the previous:
 
 ```
 python app.py
+```
+
+## Testing
+
+The application includes a comprehensive test suite in the `tests/` directory. To run all tests:
+
+```
+cd tests
+python run_tests.py
 ```
 
 ## Verification

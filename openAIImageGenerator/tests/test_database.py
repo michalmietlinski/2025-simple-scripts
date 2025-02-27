@@ -145,4 +145,6 @@ def test_database():
     logger.info("Database test completed successfully!")
 
 if __name__ == "__main__":
-    test_database() 
+    print("Running database tests...")
+    test_database()
+    print("Database tests completed.") 

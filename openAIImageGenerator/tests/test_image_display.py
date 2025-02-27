@@ -41,6 +41,7 @@ class TestImageDisplay(unittest.TestCase):
         self.app.view_original_resolution = DALLEGeneratorApp.view_original_resolution.__get__(self.app)
         self.app.open_output_directory = DALLEGeneratorApp.open_output_directory.__get__(self.app)
         self.app.display_image = DALLEGeneratorApp.display_image.__get__(self.app)
+        self.app.save_image = DALLEGeneratorApp.save_image.__get__(self.app)
     
     @patch('tkinter.Toplevel')
     @patch('tkinter.messagebox.showerror')
@@ -121,6 +122,35 @@ class TestImageDisplay(unittest.TestCase):
         
         # Verify error message was shown
         mock_showerror.assert_called_with("Error", "Output directory not found")
+    
+    @patch('tkinter.simpledialog.askstring')
+    @patch('PIL.Image.open')
+    @patch('tkinter.messagebox.showinfo')
+    @patch('os.path.exists')
+    @patch('os.path.getsize')
+    def test_save_image(self, mock_getsize, mock_exists, mock_showinfo, mock_image_open, mock_askstring):
+        """Test saving an image without showing any message."""
+        # Set up the current image
+        self.app.current_image = {
+            "data": self.image_data,
+            "prompt": "Test prompt"
+        }
+        
+        # Configure mocks
+        mock_exists.return_value = True
+        mock_getsize.return_value = 1024  # Mock file size
+        mock_image_open.return_value = self.test_image
+        mock_askstring.return_value = "Test description"
+        self.app.file_manager.save_image.return_value = "/mock/output/directory/test_image.png"
+        
+        # Call the method
+        self.app.save_image()
+        
+        # Verify the file manager was called to save the image
+        self.app.file_manager.save_image.assert_called_once()
+        
+        # Verify no success message was shown (since we removed it)
+        mock_showinfo.assert_not_called()
     
     @patch('PIL.Image.open')
     @patch('tkinter.Frame')

@@ -622,15 +622,7 @@ class DALLEGeneratorApp:
                     file_size = os.path.getsize(output_path)
                     logger.info(f"Image saved successfully. File size: {file_size} bytes")
                     
-                    # Show success message with option to open folder
-                    result = messagebox.askquestion("Success", 
-                                                   f"Image saved to: {output_path}\n\nDo you want to open the containing folder?",
-                                                   icon='info')
-                    if result == 'yes':
-                        try:
-                            os.startfile(os.path.dirname(output_path))
-                        except Exception as e:
-                            logger.error(f"Failed to open containing folder: {str(e)}")
+                    # No success message - removed
                 else:
                     # Try to use the backup
                     backup_dir = os.path.dirname(output_path)
@@ -645,15 +637,7 @@ class DALLEGeneratorApp:
                         shutil.copy2(backup_path, new_path)
                         logger.info(f"Used backup image to save to: {new_path}")
                         
-                        # Show success message with option to open folder
-                        result = messagebox.askquestion("Success (from backup)", 
-                                                       f"Image saved to: {new_path}\n\nDo you want to open the containing folder?",
-                                                       icon='info')
-                        if result == 'yes':
-                            try:
-                                os.startfile(os.path.dirname(new_path))
-                            except Exception as e:
-                                logger.error(f"Failed to open containing folder: {str(e)}")
+                        # No success message - removed
                     except Exception as e:
                         messagebox.showerror("Error", f"Failed to save image. File not found at: {output_path}")
                         logger.error(f"File not found after save attempt: {output_path}")

@@ -165,11 +165,11 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
 - **Checkpoint 2**: ✅ Test image generation with sample prompts
 
 ### Phase 3: Database Implementation (Days 5-6)
-- [ ] Create SQLite database schema
-- [ ] Implement database connection and management
-- [ ] Create data models for prompts and generations
-- [ ] Set up template and batch generation tables
-- **Checkpoint 3**: Verify database operations with test data
+- [x] Create SQLite database schema
+- [x] Implement database connection and management
+- [x] Create data models for prompts and generations
+- [x] Set up template and batch generation tables
+- **Checkpoint 3**: ✅ Verify database operations with test data
 
 ### Phase 4: Basic GUI Implementation (Days 7-9)
 - [ ] Create main application window

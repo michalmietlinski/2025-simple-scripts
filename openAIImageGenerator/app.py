@@ -13,6 +13,8 @@ from utils.database_manager import DatabaseManager
 from utils.data_models import Prompt, Generation
 from config import APP_CONFIG, ensure_directories
 from datetime import datetime
+import json
+import sqlite3
 
 # Configure logging
 logging.basicConfig(
@@ -692,15 +694,20 @@ class DALLEGeneratorApp:
         # Create sub-tabs
         prompt_history_tab = Frame(history_notebook)
         generation_history_tab = Frame(history_notebook)
+        template_management_tab = Frame(history_notebook)
         
         history_notebook.add(prompt_history_tab, text="Prompt History")
         history_notebook.add(generation_history_tab, text="Generation History")
+        history_notebook.add(template_management_tab, text="Template Management")
         
         # Setup prompt history UI
         self.setup_prompt_history_ui(prompt_history_tab)
         
         # Setup generation history UI
         self.setup_generation_history_ui(generation_history_tab)
+        
+        # Setup template management UI
+        self.setup_template_management_ui(template_management_tab)
     
     def setup_prompt_history_ui(self, parent_frame):
         """Set up the prompt history UI components."""
@@ -1410,6 +1417,688 @@ class DALLEGeneratorApp:
                  expand=[("selected", [1, 1, 1, 0])])
         
         return notebook
+
+    def setup_template_management_ui(self, parent):
+        """Set up the template management UI.
+        
+        Args:
+            parent (tk.Frame): The parent frame
+        """
+        # Create main frame
+        template_frame = ttk.Frame(parent)
+        template_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Split into left and right panels
+        left_panel = ttk.Frame(template_frame)
+        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        
+        right_panel = ttk.Frame(template_frame)
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
+        
+        # Left panel - Template list
+        ttk.Label(left_panel, text="Available Templates", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(0, 5))
+        
+        # Template list with scrollbar
+        template_list_frame = ttk.Frame(left_panel)
+        template_list_frame.pack(fill=tk.BOTH, expand=True)
+        
+        template_scrollbar = ttk.Scrollbar(template_list_frame)
+        template_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.template_list = tk.Listbox(template_list_frame, yscrollcommand=template_scrollbar.set, 
+                                        font=("Arial", 10), selectmode=tk.SINGLE, height=10)
+        self.template_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        template_scrollbar.config(command=self.template_list.yview)
+        
+        # Bind selection event
+        self.template_list.bind('<<ListboxSelect>>', self.on_template_selected)
+        
+        # Template actions buttons
+        template_actions_frame = ttk.Frame(left_panel)
+        template_actions_frame.pack(fill=tk.X, pady=5)
+        
+        self.edit_template_btn = ttk.Button(template_actions_frame, text="Edit", state=tk.DISABLED,
+                                           command=self.edit_selected_template)
+        self.edit_template_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.delete_template_btn = ttk.Button(template_actions_frame, text="Delete", state=tk.DISABLED,
+                                             command=self.delete_selected_template)
+        self.delete_template_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.use_template_btn = ttk.Button(template_actions_frame, text="Use Template", state=tk.DISABLED,
+                                          command=self.use_selected_template)
+        self.use_template_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Right panel - Template editor
+        ttk.Label(right_panel, text="Template Editor", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(0, 5))
+        
+        # Template name
+        name_frame = ttk.Frame(right_panel)
+        name_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(name_frame, text="Template Name:").pack(side=tk.LEFT)
+        self.template_name_entry = ttk.Entry(name_frame, width=30)
+        self.template_name_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        
+        # Template text
+        ttk.Label(right_panel, text="Template Text (use {{variable_name}} for variables):").pack(anchor=tk.W, pady=(5, 0))
+        
+        text_frame = ttk.Frame(right_panel)
+        text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        text_scrollbar = ttk.Scrollbar(text_frame)
+        text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.template_text = tk.Text(text_frame, height=8, width=40, yscrollcommand=text_scrollbar.set)
+        self.template_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        text_scrollbar.config(command=self.template_text.yview)
+        
+        # Template actions
+        template_btn_frame = ttk.Frame(right_panel)
+        template_btn_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Button(template_btn_frame, text="Save Template", command=self.save_template).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(template_btn_frame, text="Clear", command=self.clear_template_editor).pack(side=tk.LEFT)
+        
+        # Variable management
+        ttk.Label(right_panel, text="Variable Management", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(10, 5))
+        
+        # Variable list with scrollbar
+        var_list_frame = ttk.Frame(right_panel)
+        var_list_frame.pack(fill=tk.X, pady=5)
+        
+        var_scrollbar = ttk.Scrollbar(var_list_frame)
+        var_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.variable_list = tk.Listbox(var_list_frame, yscrollcommand=var_scrollbar.set, 
+                                       font=("Arial", 10), selectmode=tk.SINGLE, height=5)
+        self.variable_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        var_scrollbar.config(command=self.variable_list.yview)
+        
+        # Bind selection event
+        self.variable_list.bind('<<ListboxSelect>>', self.on_variable_selected)
+        
+        # Variable actions
+        var_btn_frame = ttk.Frame(right_panel)
+        var_btn_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Button(var_btn_frame, text="Add Variable", command=self.add_template_variable).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(var_btn_frame, text="Edit", command=self.edit_selected_variable).pack(side=tk.LEFT, padx=5)
+        ttk.Button(var_btn_frame, text="Delete", command=self.delete_selected_variable).pack(side=tk.LEFT, padx=5)
+        
+        # Variable editor
+        var_editor_frame = ttk.Frame(right_panel)
+        var_editor_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(var_editor_frame, text="Variable Name:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.variable_name_entry = ttk.Entry(var_editor_frame, width=20)
+        self.variable_name_entry.grid(row=0, column=1, sticky=tk.W+tk.E, pady=2, padx=5)
+        
+        ttk.Label(var_editor_frame, text="Values (one per line):").grid(row=1, column=0, sticky=tk.W, pady=2)
+        
+        values_frame = ttk.Frame(var_editor_frame)
+        values_frame.grid(row=1, column=1, sticky=tk.W+tk.E, pady=2, padx=5)
+        
+        values_scrollbar = ttk.Scrollbar(values_frame)
+        values_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.variable_values_text = tk.Text(values_frame, height=4, width=30, yscrollcommand=values_scrollbar.set)
+        self.variable_values_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        values_scrollbar.config(command=self.variable_values_text.yview)
+        
+        # Variable save/clear buttons
+        var_action_frame = ttk.Frame(var_editor_frame)
+        var_action_frame.grid(row=2, column=1, sticky=tk.E, pady=5)
+        
+        ttk.Button(var_action_frame, text="Save Variable", command=self.save_variable).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(var_action_frame, text="Clear", command=self.clear_variable_editor).pack(side=tk.LEFT)
+        
+        # Initialize
+        self.selected_variable_id = None
+        self.selected_template_id = None
+        
+        # Load templates
+        self.load_templates()
+        
+        # Load template variables
+        self.load_template_variables()
+
+    def load_template_variables(self):
+        """Load template variables from the database."""
+        if not self.db_manager:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
+                return
+        
+        try:
+            # Get variables from database
+            variables = self.db_manager.get_template_variables()
+            
+            # Clear listbox
+            self.variable_list.delete(0, tk.END)
+            
+            # Store variable IDs in a list for reference
+            self.variable_ids = []
+            
+            # Add variables to listbox
+            for var in variables:
+                # Format display text
+                display_text = f"{var['name']} ({len(var['values'])} values)"
+                
+                # Store the variable ID in our list
+                self.variable_ids.append(var['id'])
+                
+                # Add to listbox
+                self.variable_list.insert(tk.END, display_text)
+            
+            if not variables:
+                self.variable_list.insert(tk.END, "No variables defined")
+                self.variable_ids = []
+        except Exception as e:
+            logger.error(f"Error loading template variables: {str(e)}")
+            messagebox.showerror("Error", f"Failed to load template variables: {str(e)}")
+    
+    def on_variable_selected(self, event):
+        """Handle variable selection event."""
+        if not self.db_manager or not hasattr(self, 'variable_ids'):
+            return
+        
+        # Get selected index
+        selection = self.variable_list.curselection()
+        if not selection or not self.variable_ids:
+            return
+        
+        # Get variable ID from our list
+        try:
+            index = selection[0]
+            if index >= len(self.variable_ids):
+                return
+            
+            variable_id = self.variable_ids[index]
+            
+            # Get variable from database
+            variables = self.db_manager.get_template_variables()
+            variable = next((v for v in variables if v['id'] == variable_id), None)
+            
+            if not variable:
+                return
+            
+            # Store selected variable
+            self.selected_variable = variable
+            
+        except Exception as e:
+            logger.error(f"Error getting variable details: {str(e)}")
+    
+    def add_template_variable(self):
+        """Add a new template variable to the database."""
+        if not self.db_manager:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
+                return
+        
+        try:
+            # Get variable name
+            var_name = self.variable_name_entry.get().strip()
+            if not var_name:
+                messagebox.showerror("Error", "Variable name cannot be empty")
+                return
+            
+            # Get variable values
+            values_text = self.variable_values_text.get("1.0", "end-1c").strip()
+            if not values_text:
+                messagebox.showerror("Error", "Variable must have at least one value")
+                return
+            
+            # Split values by line
+            values = [v.strip() for v in values_text.split('\n') if v.strip()]
+            
+            # Add variable to database
+            variable_id = self.db_manager.add_template_variable(var_name, values)
+            
+            if variable_id:
+                # Clear inputs
+                self.clear_variable_editor()
+                
+                # Refresh variable list
+                self.load_template_variables()
+                
+                # Show confirmation
+                messagebox.showinfo("Success", f"Variable '{var_name}' added successfully")
+            else:
+                messagebox.showerror("Error", "Failed to add variable")
+        except Exception as e:
+            logger.error(f"Error adding template variable: {str(e)}")
+            messagebox.showerror("Error", f"Failed to add variable: {str(e)}")
+    
+    def edit_selected_variable(self):
+        """Edit the selected variable."""
+        if not hasattr(self, 'selected_variable'):
+            messagebox.showinfo("Info", "Please select a variable to edit")
+            return
+        
+        try:
+            # Load variable data into editor
+            self.variable_name_entry.delete(0, tk.END)
+            self.variable_name_entry.insert(0, self.selected_variable['name'])
+            
+            # Load values
+            self.variable_values_text.delete("1.0", tk.END)
+            values_text = '\n'.join(self.selected_variable['values'])
+            self.variable_values_text.insert("1.0", values_text)
+            
+            # Show confirmation
+            messagebox.showinfo("Info", f"Loaded variable '{self.selected_variable['name']}' for editing. Make changes and click 'Add Variable' to update.")
+        except Exception as e:
+            logger.error(f"Error loading variable for editing: {str(e)}")
+            messagebox.showerror("Error", f"Failed to load variable: {str(e)}")
+    
+    def delete_selected_variable(self):
+        """Delete the selected variable."""
+        if not hasattr(self, 'selected_variable') or not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete the variable '{self.selected_variable['name']}'?"):
+                return
+            
+            # Delete from database
+            success = self.db_manager.delete_template_variable(self.selected_variable['id'])
+            
+            if success:
+                # Refresh variable list
+                self.load_template_variables()
+                
+                # Clear selection
+                if hasattr(self, 'selected_variable'):
+                    delattr(self, 'selected_variable')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "Variable deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete variable")
+        except Exception as e:
+            logger.error(f"Error deleting variable: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete variable: {str(e)}")
+    
+    def clear_variable_editor(self):
+        """Clear the variable editor fields."""
+        self.variable_name_entry.delete(0, tk.END)
+        self.variable_values_text.delete("1.0", tk.END)
+    
+    def save_template(self):
+        """Save a template prompt to the database."""
+        # Get template name and text
+        template_name = self.template_name_entry.get().strip()
+        template_text = self.template_text.get("1.0", tk.END).strip()
+        
+        if not template_name or not template_text:
+            messagebox.showerror("Error", "Template name and text are required")
+            return
+        
+        # Extract variable names from template
+        variables = self.extract_template_variables(template_text)
+        
+        if not variables:
+            messagebox.showwarning("Warning", "No variables found in template. Variables should be in format {{variable_name}}")
+            return
+        
+        try:
+            # Save template to database
+            template_id = self.db_manager.add_prompt(
+                prompt_text=template_name,
+                is_template=True,
+                template_variables=json.dumps(variables)
+            )
+            
+            if template_id:
+                messagebox.showinfo("Success", f"Template '{template_name}' saved successfully")
+                self.clear_template_editor()
+                self.load_templates()  # Refresh template list
+            else:
+                messagebox.showerror("Error", "Failed to save template")
+        except Exception as e:
+            logger.error(f"Error saving template: {str(e)}")
+            messagebox.showerror("Error", f"Failed to save template: {str(e)}")
+    
+    def clear_template_editor(self):
+        """Clear the template editor fields."""
+        self.template_name_entry.delete(0, tk.END)
+        self.template_text.delete("1.0", tk.END)
+
+    def get_templates(self):
+        """Load templates from the database and return them.
+        
+        Returns:
+            list: List of template dictionaries
+        """
+        try:
+            # Use db_manager instead of direct cursor access
+            # Get all prompts and filter for templates
+            prompts = self.db_manager.get_prompt_history(limit=100)
+            # Filter to only include templates
+            templates = [p for p in prompts if p.get('is_template', 0) == 1]
+            return templates
+        except Exception as e:
+            logger.error(f"Error loading templates: {str(e)}")
+            return []
+
+    def load_templates(self):
+        """Load templates from the database and populate the template list."""
+        # Clear the current list
+        self.template_list.delete(0, tk.END)
+        
+        # Get templates from the database
+        templates = self.get_templates()
+        
+        # Add templates to the list
+        for template in templates:
+            # Format: Template Name (# variables)
+            var_count = len(template['template_variables']) if template['template_variables'] else 0
+            display_text = f"{template['prompt_text'][:30]}... ({var_count} vars)"
+            
+            # Insert into list with the template ID as the value
+            self.template_list.insert(tk.END, display_text)
+            # Store the template ID in the list item
+            self.template_list.itemconfig(tk.END, {'template_id': template['id']})
+        
+        if not templates:
+            self.template_list.insert(tk.END, "No templates found")
+            
+        logger.info(f"Loaded {len(templates)} templates")
+
+    def extract_template_variables(self, template_text):
+        """Extract variable names from a template text.
+        
+        Variables are identified by {{variable_name}} pattern.
+        
+        Args:
+            template_text (str): The template text
+            
+        Returns:
+            list: List of unique variable names
+        """
+        import re
+        
+        # Find all occurrences of {{variable_name}}
+        pattern = r'\{\{([^{}]+)\}\}'
+        matches = re.findall(pattern, template_text)
+        
+        # Return unique variable names
+        return list(set(matches))
+
+    def on_template_selected(self, event=None):
+        """Handle template selection from the list."""
+        # Get selected index
+        selection = self.template_list.curselection()
+        if not selection:
+            return
+        
+        # Get template ID from the selected item
+        try:
+            template_id = self.template_list.itemcget(selection[0], 'template_id')
+            if not template_id:
+                return
+                
+            # Get template from database
+            templates = self.db_manager.get_prompt_history(prompt_id=template_id)
+            if not templates:
+                messagebox.showerror("Error", "Template not found")
+                return
+                
+            template = templates[0]
+            
+            # Load template data into editor
+            self.template_name_entry.delete(0, tk.END)
+            self.template_name_entry.insert(0, template['prompt_text'])
+            
+            # Load template variables
+            variables = json.loads(template['template_variables']) if template['template_variables'] else []
+            
+            # Update variable list
+            self.variable_list.delete(0, tk.END)
+            for var in variables:
+                self.variable_list.insert(tk.END, var)
+                
+            # Store the selected template ID
+            self.selected_template_id = template['id']
+            
+            # Enable edit/delete buttons
+            self.edit_template_btn.config(state=tk.NORMAL)
+            self.delete_template_btn.config(state=tk.NORMAL)
+            self.use_template_btn.config(state=tk.NORMAL)
+            
+        except Exception as e:
+            logger.error(f"Error loading template: {str(e)}")
+            messagebox.showerror("Error", f"Failed to load template: {str(e)}")
+
+    def edit_selected_template(self):
+        """Edit the selected template."""
+        if not hasattr(self, 'selected_template_id') or not self.selected_template_id:
+            messagebox.showerror("Error", "No template selected")
+            return
+            
+        # Template is already loaded in the editor from on_template_selected
+        messagebox.showinfo("Edit Template", "Make your changes and click 'Save Template' to update")
+    
+    def delete_selected_template(self):
+        """Delete the selected template."""
+        if not hasattr(self, 'selected_template_id') or not self.selected_template_id:
+            messagebox.showerror("Error", "No template selected")
+            return
+            
+        # Confirm deletion
+        if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this template?"):
+            return
+            
+        try:
+            # Delete template from database
+            success = self.db_manager.delete_prompt(self.selected_template_id)
+            
+            if not success:
+                messagebox.showerror("Error", "Failed to delete template")
+                return
+                
+            # Refresh template list
+            self.load_templates()
+            
+            # Clear editor
+            self.clear_template_editor()
+            
+            # Reset selected template
+            self.selected_template_id = None
+            
+            # Disable edit/delete buttons
+            self.edit_template_btn.config(state=tk.DISABLED)
+            self.delete_template_btn.config(state=tk.DISABLED)
+            self.use_template_btn.config(state=tk.DISABLED)
+            
+            messagebox.showinfo("Success", "Template deleted successfully")
+        except Exception as e:
+            logger.error(f"Error deleting template: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete template: {str(e)}")
+    
+    def use_selected_template(self):
+        """Use the selected template for prompt generation."""
+        if not hasattr(self, 'selected_template_id') or not self.selected_template_id:
+            messagebox.showerror("Error", "No template selected")
+            return
+            
+        try:
+            # Get template from database
+            templates = self.db_manager.get_prompt_history(prompt_id=self.selected_template_id)
+            if not templates:
+                messagebox.showerror("Error", "Template not found")
+                return
+                
+            template = templates[0]
+            
+            # Show template variable dialog
+            self.show_template_variable_dialog(template['prompt_text'], json.loads(template['template_variables']))
+        except Exception as e:
+            logger.error(f"Error using template: {str(e)}")
+            messagebox.showerror("Error", f"Failed to use template: {str(e)}")
+    
+    def show_template_variable_dialog(self, template_text, variables):
+        """Show a dialog to fill in template variables.
+        
+        Args:
+            template_text (str): The template text
+            variables (list): List of variable names
+        """
+        # Create dialog
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Fill Template Variables")
+        dialog.geometry("500x400")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Create frame for variable inputs
+        frame = ttk.Frame(dialog, padding=10)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Add instructions
+        ttk.Label(frame, text="Fill in the values for each variable:", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(0, 10))
+        
+        # Create dictionary to store variable entries
+        var_entries = {}
+        
+        # Create scrollable frame for variables
+        canvas = tk.Canvas(frame)
+        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Get all template variables from database
+        template_variables = self.db_manager.get_template_variables()
+        var_values_dict = {}
+        
+        # Create a dictionary of variable names to their values
+        for var in template_variables:
+            if var['name'] in variables:
+                var_values_dict[var['name']] = json.loads(var['value_list']) if var['value_list'] else []
+        
+        # Add variable inputs
+        for i, var_name in enumerate(variables):
+            var_frame = ttk.Frame(scrollable_frame)
+            var_frame.pack(fill=tk.X, pady=5)
+            
+            ttk.Label(var_frame, text=f"{var_name}:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+            
+            # Create entry for variable
+            var_entry = ttk.Entry(var_frame, width=40)
+            var_entry.grid(row=0, column=1, sticky=tk.W+tk.E)
+            
+            # If we have values for this variable, create a dropdown instead
+            if var_name in var_values_dict and var_values_dict[var_name]:
+                values = var_values_dict[var_name]
+                if values:
+                    var_entry.destroy()  # Remove the entry widget
+                    var_combo = ttk.Combobox(var_frame, width=38, values=values)
+                    var_combo.grid(row=0, column=1, sticky=tk.W+tk.E)
+                    var_combo.current(0)  # Set to first value
+                    var_entries[var_name] = var_combo
+                    continue
+            
+            # If we get here, use the entry widget
+            var_entries[var_name] = var_entry
+        
+        # Add buttons
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill=tk.X, pady=10)
+        
+        ttk.Button(
+            button_frame, 
+            text="Generate Prompt", 
+            command=lambda: self.generate_from_template(template_text, var_entries, dialog)
+        ).pack(side=tk.RIGHT, padx=5)
+        
+        ttk.Button(
+            button_frame, 
+            text="Cancel", 
+            command=dialog.destroy
+        ).pack(side=tk.RIGHT)
+    
+    def generate_from_template(self, template_text, var_entries, dialog):
+        """Generate a prompt from a template with variable values.
+        
+        Args:
+            template_text (str): The template text
+            var_entries (dict): Dictionary of variable entries
+            dialog (tk.Toplevel): The dialog window
+        """
+        # Get variable values
+        var_values = {}
+        for var_name, entry in var_entries.items():
+            var_values[var_name] = entry.get()
+            
+            if not var_values[var_name]:
+                messagebox.showerror("Error", f"Please fill in a value for '{var_name}'")
+                return
+        
+        # Replace variables in template
+        prompt_text = template_text
+        for var_name, value in var_values.items():
+            prompt_text = prompt_text.replace(f"{{{{{var_name}}}}}", value)
+        
+        # Close dialog
+        dialog.destroy()
+        
+        # Set prompt in main UI
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", prompt_text)
+        
+        # Show confirmation
+        messagebox.showinfo("Success", "Template prompt generated successfully")
+    
+    def save_variable(self):
+        """Save a template variable."""
+        # Get variable name and values
+        var_name = self.variable_name_entry.get().strip()
+        var_values_text = self.variable_values_text.get("1.0", tk.END).strip()
+        
+        if not var_name:
+            messagebox.showerror("Error", "Variable name is required")
+            return
+            
+        if not var_values_text:
+            messagebox.showerror("Error", "At least one variable value is required")
+            return
+            
+        # Split values by line
+        values = [line.strip() for line in var_values_text.split('\n') if line.strip()]
+        
+        if not values:
+            messagebox.showerror("Error", "At least one variable value is required")
+            return
+            
+        try:
+            # Save variable to database
+            result = self.db_manager.add_template_variable(var_name, json.dumps(values))
+            
+            if result:
+                messagebox.showinfo("Success", f"Variable '{var_name}' saved successfully")
+                self.clear_variable_editor()
+                self.load_template_variables()
+            else:
+                messagebox.showerror("Error", "Failed to save variable")
+        except Exception as e:
+            logger.error(f"Error saving variable: {str(e)}")
+            messagebox.showerror("Error", f"Failed to save variable: {str(e)}")
 
 if __name__ == "__main__":
     root = tk.Tk()

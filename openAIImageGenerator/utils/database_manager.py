@@ -508,6 +508,37 @@ class DatabaseManager:
             logger.error(f"Error retrieving template variables: {str(e)}")
             raise
     
+    def delete_template_variable(self, variable_id):
+        """Delete a template variable.
+        
+        Args:
+            variable_id (int): ID of the variable to delete
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Get variable name for logging
+            self.cursor.execute("SELECT name FROM template_variables WHERE id = ?", (variable_id,))
+            variable = self.cursor.fetchone()
+            
+            if not variable:
+                logger.warning(f"Attempted to delete non-existent template variable with ID {variable_id}")
+                return False
+            
+            # Delete the variable
+            self.cursor.execute("DELETE FROM template_variables WHERE id = ?", (variable_id,))
+            
+            # Commit the changes
+            self.conn.commit()
+            
+            logger.info(f"Deleted template variable '{variable['name']}' (ID: {variable_id})")
+            return True
+        except sqlite3.Error as e:
+            logger.error(f"Error deleting template variable: {str(e)}")
+            self.conn.rollback()
+            return False
+    
     # Batch Generation Methods
     
     def create_batch(self, template_prompt_id, total_images, variable_combinations=None):

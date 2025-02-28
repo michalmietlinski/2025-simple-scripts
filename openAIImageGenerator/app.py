@@ -1540,95 +1540,226 @@ class DALLEGeneratorApp:
 
     def setup_template_management_ui(self):
         """Set up the template management UI."""
-        # Create a frame for template management
-        template_frame = ttk.LabelFrame(self.notebook, text="Template Management")
-        self.notebook.add(template_frame, text="Templates")
-        
+        # Use the existing templates tab
+        template_frame = self.templates_tab
+
         # Split into left and right panes
-        template_panes = ttk.PanedWindow(template_frame, orient=tk.HORIZONTAL)
+        template_panes = ttk.PanedWindow(template_frame, orient=tk.HORIZONTAL)    
         template_panes.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # Left pane - Template list
-        left_pane = ttk.Frame(template_panes)
-        template_panes.add(left_pane, weight=1)
-        
-        # Template list with scrollbar
-        ttk.Label(left_pane, text="Available Templates:").pack(anchor=tk.W, pady=(0, 5))
-        
-        list_frame = ttk.Frame(left_pane)
-        list_frame.pack(fill=tk.BOTH, expand=True)
-        
-        self.template_list = tk.Listbox(list_frame, height=15, width=40)
-        self.template_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.template_list.bind('<<ListboxSelect>>', self.on_template_selected)
-        
-        template_scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.template_list.yview)
-        template_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.template_list.config(yscrollcommand=template_scrollbar.set)
-        
-        # Buttons for template actions
-        btn_frame = ttk.Frame(left_pane)
-        btn_frame.pack(fill=tk.X, pady=10)
-        
-        self.edit_template_btn = ttk.Button(btn_frame, text="Edit", command=self.edit_selected_template, state=tk.DISABLED)
-        self.edit_template_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.clone_template_btn = ttk.Button(btn_frame, text="Clone", command=self.clone_template, state=tk.DISABLED)
-        self.clone_template_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.delete_template_btn = ttk.Button(btn_frame, text="Delete", command=self.delete_selected_template, state=tk.DISABLED)
-        self.delete_template_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.use_template_btn = ttk.Button(btn_frame, text="Use", command=self.use_selected_template, state=tk.DISABLED)
-        self.use_template_btn.pack(side=tk.LEFT, padx=5)
-        
-        # Right pane - Template editor
-        right_pane = ttk.Frame(template_panes)
-        template_panes.add(right_pane, weight=2)
-        
-        # Template editor
-        ttk.Label(right_pane, text="Template Name:").pack(anchor=tk.W, pady=(0, 5))
-        self.template_name_entry = ttk.Entry(right_pane, width=50)
-        self.template_name_entry.pack(fill=tk.X, pady=(0, 10))
-        
-        ttk.Label(right_pane, text="Template Text:").pack(anchor=tk.W, pady=(0, 5))
-        
-        # Text area with scrollbar
-        text_frame = ttk.Frame(right_pane)
-        text_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        self.template_text = tk.Text(text_frame, height=10, width=50, wrap=tk.WORD)
-        self.template_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        text_scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=self.template_text.yview)
-        text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.template_text.config(yscrollcommand=text_scrollbar.set)
-        
-        # Variable list
-        var_frame = ttk.Frame(right_pane)
-        var_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
-        
-        ttk.Label(var_frame, text="Variables:").pack(anchor=tk.W, pady=(0, 5))
-        
-        var_list_frame = ttk.Frame(var_frame)
-        var_list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        self.variable_list = tk.Listbox(var_list_frame, height=5, width=30)
-        self.variable_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        var_scrollbar = ttk.Scrollbar(var_list_frame, orient=tk.VERTICAL, command=self.variable_list.yview)
-        var_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.variable_list.config(yscrollcommand=var_scrollbar.set)
-        
-        # Save button
-        save_btn = ttk.Button(right_pane, text="Save Template", command=self.save_template)
-        save_btn.pack(pady=10)
-        
-        # Load templates
-        self.load_templates()
     
-    def load_templates(self):
-        """Load templates from the database."""
+    def setup_prompt_history_ui(self, parent_frame):
+        """Set up the prompt history UI components."""
+        # Create a frame for controls
+        controls_frame = Frame(parent_frame, padx=10, pady=10)
+        controls_frame.pack(fill="x")
+        
+        # Search box
+        Label(controls_frame, text="Search:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.prompt_search_var = StringVar()
+        search_entry = tk.Entry(controls_frame, textvariable=self.prompt_search_var, width=30)
+        search_entry.pack(side="left", padx=(0, 10))
+        
+        # Search button
+        search_btn = self.create_styled_button(
+            controls_frame, 
+            text="Search", 
+            command=self.search_prompts,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        search_btn.pack(side="left", padx=(0, 20))
+        
+        # Favorites only checkbox
+        self.favorites_only_var = tk.BooleanVar(value=False)
+        favorites_check = tk.Checkbutton(controls_frame, text="Favorites Only", variable=self.favorites_only_var, command=self.search_prompts)
+        favorites_check.pack(side="left", padx=(0, 20))
+        
+        # Clear all prompts button
+        clear_all_btn = self.create_styled_button(
+            controls_frame, 
+            text="Clear All", 
+            command=self.clear_all_prompts, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        clear_all_btn.pack(side="right", padx=(10, 0))
+        
+        # Refresh button
+        refresh_btn = self.create_styled_button(
+            controls_frame, 
+            text="Refresh", 
+            command=self.search_prompts,
+            bg_color="#9e9e9e",
+            fg_color="white"
+        )
+        refresh_btn.pack(side="right")
+        
+        # Create a frame for the prompt list
+        list_frame = Frame(parent_frame, padx=10, pady=10)
+        list_frame.pack(fill="both", expand=True)
+        
+        # Create a listbox with scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        
+        self.prompt_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10), height=15)
+        self.prompt_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.prompt_listbox.yview)
+        
+        # Bind selection event
+        self.prompt_listbox.bind('<<ListboxSelect>>', self.on_prompt_selected)
+        
+        # Create a frame for prompt details
+        details_frame = Frame(parent_frame, padx=10, pady=10)
+        details_frame.pack(fill="x")
+        
+        # Prompt text
+        Label(details_frame, text="Prompt:", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.selected_prompt_text = Text(details_frame, height=3, width=60, wrap="word")
+        self.selected_prompt_text.pack(fill="x", pady=(0, 10))
+        
+        # Action buttons
+        buttons_frame = Frame(details_frame)
+        buttons_frame.pack(fill="x")
+        
+        use_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Use Prompt", 
+            command=self.use_selected_prompt,
+            bg_color="#4CAF50",
+            fg_color="white"
+        )
+        use_btn.pack(side="left", padx=(0, 10))
+        
+        favorite_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Toggle Favorite", 
+            command=self.toggle_favorite_prompt,
+            bg_color="#FFC107",
+            fg_color="black"
+        )
+        favorite_btn.pack(side="left", padx=(0, 10))
+        
+        delete_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Delete", 
+            command=self.delete_selected_prompt, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        delete_btn.pack(side="left", padx=(0, 10))
+        
+        # Load initial prompts
+        self.search_prompts()
+    
+    def setup_generation_history_ui(self, parent_frame):
+        """Set up the generation history UI components."""
+        # Create a frame for controls
+        controls_frame = Frame(parent_frame, padx=10, pady=10)
+        controls_frame.pack(fill="x")
+        
+        # Date range
+        Label(controls_frame, text="From:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.date_from_var = StringVar()
+        date_from_entry = tk.Entry(controls_frame, textvariable=self.date_from_var, width=10)
+        date_from_entry.pack(side="left", padx=(0, 10))
+        
+        Label(controls_frame, text="To:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.date_to_var = StringVar()
+        date_to_entry = tk.Entry(controls_frame, textvariable=self.date_to_var, width=10)
+        date_to_entry.pack(side="left", padx=(0, 10))
+        
+        # Search button
+        search_btn = self.create_styled_button(
+            controls_frame, 
+            text="Search", 
+            command=self.search_generations,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        search_btn.pack(side="left", padx=(0, 20))
+        
+        # Clear all generations button
+        clear_all_btn = self.create_styled_button(
+            controls_frame, 
+            text="Clear All", 
+            command=self.clear_all_generations, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        clear_all_btn.pack(side="right", padx=(10, 0))
+        
+        # Refresh button
+        refresh_btn = self.create_styled_button(
+            controls_frame, 
+            text="Refresh", 
+            command=self.search_generations,
+            bg_color="#9e9e9e",
+            fg_color="white"
+        )
+        refresh_btn.pack(side="right")
+        
+        # Create a frame for the generation list
+        list_frame = Frame(parent_frame, padx=10, pady=10)
+        list_frame.pack(fill="both", expand=True)
+        
+        # Create a listbox with scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.generation_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10), height=15)
+        self.generation_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.generation_listbox.yview)
+        
+        # Bind selection event
+        self.generation_listbox.bind('<<ListboxSelect>>', self.on_generation_selected)
+        
+        # Create a frame for generation details
+        details_frame = Frame(parent_frame, padx=10, pady=10)
+        details_frame.pack(fill="x")
+        
+        # Generation details
+        Label(details_frame, text="Details:", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.generation_details_text = Text(details_frame, height=5, width=60, wrap="word")
+        self.generation_details_text.pack(fill="x", pady=(0, 10))
+        
+        # Action buttons
+        buttons_frame = Frame(details_frame)
+        buttons_frame.pack(fill="x")
+        
+        view_btn = self.create_styled_button(
+            buttons_frame, 
+            text="View Image", 
+            command=self.view_selected_generation,
+            bg_color="#4CAF50",
+            fg_color="white"
+        )
+        view_btn.pack(side="left", padx=(0, 10))
+        
+        use_prompt_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Use Prompt", 
+            command=self.use_selected_generation_prompt,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        use_prompt_btn.pack(side="left", padx=(0, 10))
+        
+        delete_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Delete", 
+            command=self.delete_selected_generation, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        delete_btn.pack(side="left", padx=(0, 10))
+        
+        # Load initial generations
+        self.search_generations()
+    
+    def search_prompts(self):
+        """Search for prompts based on current filters."""
         if not self.db_manager:
             try:
                 self.db_manager = DatabaseManager()
@@ -1637,507 +1768,1919 @@ class DALLEGeneratorApp:
                 return
         
         try:
-            # Get templates from database
-            templates = self.db_manager.get_template_history()
+            # Get search parameters
+            search_term = self.prompt_search_var.get().strip()
+            favorites_only = self.favorites_only_var.get()
+            
+            # Get prompts from database
+            prompts = self.db_manager.get_prompt_history(
+                limit=50,
+                search=search_term if search_term else None,
+                favorites_only=favorites_only
+            )
             
             # Clear listbox
-            self.template_list.delete(0, tk.END)
+            self.prompt_listbox.delete(0, tk.END)
             
-            # Store template IDs in a list for reference
-            self.template_ids = []
+            # Store prompt IDs in a list for reference
+            self.prompt_ids = []
             
-            # Add templates to listbox
-            for template in templates:
+            # Add prompts to listbox
+            for prompt in prompts:
                 # Format display text
-                display_text = f"{template['name']} ({len(template['variables'])} variables)"
+                display_text = f"{prompt['prompt_text'][:50]}{'...' if len(prompt['prompt_text']) > 50 else ''}"
+                if prompt['favorite']:
+                    display_text = "★ " + display_text
                 
-                # Store the template ID in our list
-                self.template_ids.append(template['id'])
+                # Store the prompt ID in our list
+                self.prompt_ids.append(prompt['id'])
                 
                 # Add to listbox
-                self.template_list.insert(tk.END, display_text)
+                self.prompt_listbox.insert(tk.END, display_text)
             
-            if not templates:
-                self.template_list.insert(tk.END, "No templates defined")
-                self.template_ids = []
+            if not prompts:
+                self.prompt_listbox.insert(tk.END, "No prompts found")
+                self.prompt_ids = []
         except Exception as e:
-            logger.error(f"Error loading templates: {str(e)}")
-            messagebox.showerror("Error", f"Failed to load templates: {str(e)}")
+            logger.error(f"Error searching prompts: {str(e)}")
+            messagebox.showerror("Error", f"Failed to search prompts: {str(e)}")
     
-    def on_template_selected(self, event=None):
-        """Handle template selection from the list."""
+    def on_prompt_selected(self, event):
+        """Handle prompt selection event."""
+        if not self.db_manager or not hasattr(self, 'prompt_ids'):
+            return
+        
         # Get selected index
-        selection = self.template_list.curselection()
-        if not selection:
+        selection = self.prompt_listbox.curselection()
+        if not selection or not self.prompt_ids:
             return
         
-        # Get template ID from our list using the selected index
+        # Get prompt ID from our list
         try:
-            if not hasattr(self, 'template_ids') or not self.template_ids or selection[0] >= len(self.template_ids):
+            index = selection[0]
+            if index >= len(self.prompt_ids):
                 return
-                
-            template_id = self.template_ids[selection[0]]
-            if not template_id:
+            
+            prompt_id = self.prompt_ids[index]
+            
+            # Get prompt from database
+            prompts = self.db_manager.get_prompt_history(limit=1, prompt_id=prompt_id)
+            if not prompts:
                 return
-                
-            # Get template from database
-            templates = self.db_manager.get_prompt_history(prompt_id=template_id)
-            if not templates:
-                messagebox.showerror("Error", "Template not found")
-                return
-                
-            template = templates[0]
             
-            # Debug logging
-            logger.info(f"Template data: {template}")
-            logger.info(f"Template variables (raw): {template['template_variables']}")
-            logger.info(f"Template variables type: {type(template['template_variables'])}")
+            prompt = prompts[0]
             
-            # Extract template name and text from JSON structure if possible
-            template_name = template['prompt_text']
-            template_text = template['prompt_text']
+            # Update prompt text
+            self.selected_prompt_text.delete("1.0", tk.END)
+            self.selected_prompt_text.insert("1.0", prompt['prompt_text'])
             
-            try:
-                if isinstance(template['prompt_text'], str) and (template['prompt_text'].startswith('{') or template['prompt_text'].startswith('[')):
-                    parsed_data = json.loads(template['prompt_text'])
-                    if isinstance(parsed_data, dict):
-                        if 'name' in parsed_data:
-                            template_name = parsed_data['name']
-                        if 'text' in parsed_data:
-                            template_text = parsed_data['text']
-            except json.JSONDecodeError:
-                # If parsing fails, use the raw text
-                pass
-            
-            # Load template name into editor
-            self.template_name_entry.delete(0, tk.END)
-            self.template_name_entry.insert(0, template_name)
-            
-            # Load template text into text area
-            self.template_text.delete("1.0", tk.END)
-            self.template_text.insert("1.0", template_text)
-            
-            # Parse template variables safely
-            variables = []
-            if template['template_variables'] and isinstance(template['template_variables'], str):
-                template_vars_str = template['template_variables']
-                
-                # The template variables are stored as a JSON string, so we need to parse it
-                try:
-                    # First, try direct JSON parsing
-                    variables = json.loads(template_vars_str)
-                    logger.info(f"Successfully parsed with json.loads(): {variables}")
-                except json.JSONDecodeError as e:
-                    logger.error(f"JSON parsing error: {str(e)}")
-                    # If JSON parsing fails, try to fix common issues
-                    if template_vars_str.startswith('[') and template_vars_str.endswith(']'):
-                        # Try to clean up the string and parse it again
-                        cleaned_str = template_vars_str.replace("'", '"')
-                        try:
-                            variables = json.loads(cleaned_str)
-                            logger.info(f"Successfully parsed with cleaned JSON: {variables}")
-                        except json.JSONDecodeError:
-                            # If that fails, try a more manual approach
-                            content = template_vars_str[1:-1].strip()
-                            if content:
-                                parts = [p.strip().strip('"\'') for p in content.split(',')]
-                                variables = [p for p in parts if p]
-                                logger.info(f"Manual parsing result: {variables}")
-            
-            logger.info(f"Final parsed variables: {variables}")
-            
-            # Update variable list
-            self.variable_list.delete(0, tk.END)
-            for var in variables:
-                self.variable_list.insert(tk.END, var)
-                
-            # Store the selected template ID
-            self.selected_template_id = template_id
-            
-            # Enable edit/delete buttons
-            self.edit_template_btn.config(state=tk.NORMAL)
-            self.delete_template_btn.config(state=tk.NORMAL)
-            self.use_template_btn.config(state=tk.NORMAL)
-            
+            # Store selected prompt ID
+            self.selected_prompt_id = prompt['id']
         except Exception as e:
-            logger.error(f"Error loading template: {str(e)}")
-            messagebox.showerror("Error", f"Failed to load template: {str(e)}")
-
-    def edit_selected_template(self):
-        """Edit the selected template."""
-        if not hasattr(self, 'selected_template_id') or not self.selected_template_id:
-            messagebox.showerror("Error", "No template selected")
-            return
-            
-        # Template is already loaded in the editor from on_template_selected
-        messagebox.showinfo("Edit Template", "Make your changes and click 'Save Template' to update the existing template")
+            logger.error(f"Error getting prompt details: {str(e)}")
     
-    def delete_selected_template(self):
-        """Delete the selected template."""
-        if not hasattr(self, 'selected_template_id') or not self.selected_template_id:
-            messagebox.showerror("Error", "No template selected")
+    def use_selected_prompt(self):
+        """Use the selected prompt for image generation."""
+        # Get prompt text
+        prompt_text = self.selected_prompt_text.get("1.0", "end-1c").strip()
+        if not prompt_text:
             return
-            
-        # Confirm deletion
-        if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this template?"):
-            return
-            
-        try:
-            # Delete template from database
-            success = self.db_manager.delete_template(self.selected_template_id)
-            
-            if not success:
-                messagebox.showerror("Error", "Failed to delete template")
-                return
-                
-            # Refresh template list
-            self.load_templates()
-            
-            # Clear editor
-            self.clear_template_editor()
-            
-            # Reset selected template
-            self.selected_template_id = None
-            
-            # Disable edit/delete buttons
-            self.edit_template_btn.config(state=tk.DISABLED)
-            self.delete_template_btn.config(state=tk.DISABLED)
-            self.use_template_btn.config(state=tk.DISABLED)
-            
-            messagebox.showinfo("Success", "Template deleted successfully")
-        except Exception as e:
-            logger.error(f"Error deleting template: {str(e)}")
-            messagebox.showerror("Error", f"Failed to delete template: {str(e)}")
-    
-    def use_selected_template(self):
-        """Use the selected template for prompt generation."""
-        if not hasattr(self, 'selected_template_id') or not self.selected_template_id:
-            messagebox.showerror("Error", "No template selected")
-            return
-            
-        try:
-            # Get template from database
-            templates = self.db_manager.get_template_history(template_id=self.selected_template_id)
-            if not templates:
-                messagebox.showerror("Error", "Template not found")
-                return
-                
-            template = templates[0]
-            
-            # Debug logging
-            logger.info(f"Using template: {template}")
-            logger.info(f"Template variables (raw): {template['variables']}")
-            logger.info(f"Template variables type: {type(template['variables'])}")
-            
-            # Extract template text from JSON structure if possible
-            template_name = template['name']
-            template_text = template['text']
-            
-            try:
-                if isinstance(template['text'], str) and (template['text'].startswith('{') or template['text'].startswith('[')):
-                    parsed_data = json.loads(template['text'])
-                    if isinstance(parsed_data, dict):
-                        if 'name' in parsed_data:
-                            template_name = parsed_data['name']
-                        if 'text' in parsed_data:
-                            template_text = parsed_data['text']
-                    logger.info(f"Extracted template name: {template_name}")
-                    logger.info(f"Extracted template text: {template_text}")
-            except json.JSONDecodeError as e:
-                logger.error(f"Error parsing template JSON: {str(e)}")
-                # If parsing fails, use the raw text
-                pass
-            
-            # Parse template variables safely
-            variables = []
-            if template['variables'] and isinstance(template['variables'], str):
-                template_vars_str = template['variables']
-                logger.info(f"Template variables string: '{template_vars_str}'")
-                
-                # The template variables are stored as a JSON string, so we need to parse it
-                try:
-                    # First, try direct JSON parsing
-                    variables = json.loads(template_vars_str)
-                    logger.info(f"Successfully parsed with json.loads(): {variables}")
-                except json.JSONDecodeError as e:
-                    logger.error(f"JSON parsing error: {str(e)}")
-                    # If JSON parsing fails, try to fix common issues
-                    if template_vars_str.startswith('[') and template_vars_str.endswith(']'):
-                        # Try to clean up the string and parse it again
-                        cleaned_str = template_vars_str.replace("'", '"')
-                        try:
-                            variables = json.loads(cleaned_str)
-                            logger.info(f"Successfully parsed with cleaned JSON: {variables}")
-                        except json.JSONDecodeError:
-                            # If that fails, try a more manual approach
-                            content = template_vars_str[1:-1].strip()
-                            if content:
-                                # Split by comma but handle quoted strings properly
-                                import re
-                                # This regex matches either a quoted string or a non-comma string
-                                parts = re.findall(r'"([^"]*)"|\s*([^,\s][^,]*[^,\s])\s*|\'([^\']*)\'', content)
-                                # Flatten the results and remove empty strings
-                                variables = [next(s for s in part if s) for part in parts if any(s for s in part)]
-                                logger.info(f"Manual parsing result: {variables}")
-            
-            logger.info(f"Final parsed variables: {variables}")
-            
-            # Extract variables from template text if none were found in the database
-            if not variables:
-                variables = self.extract_template_variables(template_text)
-                logger.info(f"Extracted variables from template text: {variables}")
-            
-            # Show template variable dialog with the actual template text
-            self.show_template_variable_dialog(template_text, variables)
-        except Exception as e:
-            logger.error(f"Error using template: {str(e)}")
-            messagebox.showerror("Error", f"Error using template: {str(e)}")
-    
-    def show_template_variable_dialog(self, template_text, variables):
-        """Show a dialog to fill in template variables.
         
-        Args:
-            template_text (str): The template text
-            variables (list): List of variable names
-        """
-        # Create dialog
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Fill Template Variables")
-        dialog.geometry("500x400")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        
-        # Create frame for variable inputs
-        frame = ttk.Frame(dialog, padding=10)
-        frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Add instructions
-        ttk.Label(frame, text="Fill in the values for each variable:", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(0, 10))
-        
-        # Create dictionary to store variable entries
-        var_entries = {}
-        
-        # Create scrollable frame for variables
-        canvas = tk.Canvas(frame)
-        scrollbar = ttk.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Get all template variables from database
-        db_template_variables = self.db_manager.get_template_variables()
-        var_values_dict = {}
-        
-        # Log the variables we're working with
-        logger.info(f"Template variables to fill: {variables}")
-        logger.info(f"Database template variables: {db_template_variables}")
-        
-        # Create a dictionary of variable names to their values
-        for var in db_template_variables:
-            if var['name'] in variables:
-                var_values_dict[var['name']] = var.get('values', [])
-        
-        logger.info(f"Variable values dictionary: {var_values_dict}")
-        
-        # Add variable inputs
-        for i, var_name in enumerate(variables):
-            var_frame = ttk.Frame(scrollable_frame)
-            var_frame.pack(fill=tk.X, pady=5)
-            
-            ttk.Label(var_frame, text=f"{var_name}:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
-            
-            # Create entry for variable
-            var_entry = ttk.Entry(var_frame, width=40)
-            var_entry.grid(row=0, column=1, sticky=tk.W+tk.E)
-            
-            # If we have values for this variable, create a dropdown instead
-            if var_name in var_values_dict and var_values_dict[var_name]:
-                values = var_values_dict[var_name]
-                if values:
-                    var_entry.destroy()  # Remove the entry widget
-                    var_combo = ttk.Combobox(var_frame, width=38, values=values)
-                    var_combo.grid(row=0, column=1, sticky=tk.W+tk.E)
-                    var_combo.current(0)  # Set to first value
-                    var_entries[var_name] = var_combo
-                    continue
-            
-            # If we get here, use the entry widget
-            var_entries[var_name] = var_entry
-        
-        # Add buttons
-        button_frame = ttk.Frame(frame)
-        button_frame.pack(fill=tk.X, pady=10)
-        
-        ttk.Button(
-            button_frame, 
-            text="Generate Prompt", 
-            command=lambda: self.generate_from_template(template_text, var_entries, dialog)
-        ).pack(side=tk.RIGHT, padx=5)
-        
-        ttk.Button(
-            button_frame, 
-            text="Cancel", 
-            command=dialog.destroy
-        ).pack(side=tk.RIGHT)
-    
-    def generate_from_template(self, template_text, var_entries, dialog):
-        """Generate a prompt from a template with variable values.
-        
-        Args:
-            template_text (str): The template text
-            var_entries (dict): Dictionary of variable entries
-            dialog (tk.Toplevel): The dialog window
-        """
-        # Get variable values
-        var_values = {}
-        for var_name, entry in var_entries.items():
-            var_values[var_name] = entry.get()
-            
-            if not var_values[var_name]:
-                messagebox.showerror("Error", f"Please fill in a value for '{var_name}'")
-                return
-        
-        # Replace variables in template
-        prompt_text = template_text
-        for var_name, value in var_values.items():
-            prompt_text = prompt_text.replace(f"{{{{{var_name}}}}}", value)
-        
-        # Close dialog
-        dialog.destroy()
-        
-        # Set prompt in main UI
+        # Set prompt in generation tab
+        self.notebook.select(0)  # Switch to generation tab
         self.prompt_text.delete("1.0", tk.END)
         self.prompt_text.insert("1.0", prompt_text)
-        
-        # Show confirmation
-        messagebox.showinfo("Success", "Template prompt generated successfully")
     
-    def save_template(self):
-        """Save a template prompt to the database."""
-        # Get template name and text
-        template_name = self.template_name_entry.get().strip()
-        template_text = self.template_text.get("1.0", tk.END).strip()
-        
-        if not template_name or not template_text:
-            messagebox.showerror("Error", "Template name and text are required")
-            return
-        
-        # Extract variable names from template
-        variables = self.extract_template_variables(template_text)
-        
-        if not variables:
-            messagebox.showwarning("Warning", "No variables found in template. Variables should be in format {{variable_name}}")
+    def toggle_favorite_prompt(self):
+        """Toggle favorite status of the selected prompt."""
+        if not hasattr(self, 'selected_prompt_id') or not self.db_manager:
             return
         
         try:
-            # Create a combined structure to store both name and text
-            template_data = {
-                "name": template_name,
-                "text": template_text
-            }
-            
-            # Check if we're editing an existing template
-            if hasattr(self, 'selected_template_id') and self.selected_template_id:
-                # Update existing template
-                success = self.db_manager.update_template(
-                    self.selected_template_id,
-                    template_text=json.dumps(template_data),
-                    variables=json.dumps(variables)
-                )
-                
-                if success:
-                    messagebox.showinfo("Success", f"Template '{template_name}' updated successfully")
-                    self.clear_template_editor()
-                    self.load_templates()  # Refresh template list
-                    # Reset selected template ID
-                    self.selected_template_id = None
-                else:
-                    messagebox.showerror("Error", "Failed to update template")
-            else:
-                # Create new template
-                template_id = self.db_manager.add_template(
-                    template_text=json.dumps(template_data),  # Store both name and text as JSON
-                    variables=json.dumps(variables)
-                )
-                
-                if template_id:
-                    messagebox.showinfo("Success", f"Template '{template_name}' saved successfully")
-                    self.clear_template_editor()
-                    self.load_templates()  # Refresh template list
-                else:
-                    messagebox.showerror("Error", "Failed to save template")
-        except Exception as e:
-            logger.error(f"Error saving template: {str(e)}")
-            messagebox.showerror("Error", f"Failed to save template: {str(e)}")
-            
-    def clone_template(self):
-        """Clone the selected template."""
-        if not hasattr(self, 'selected_template_id') or not self.selected_template_id:
-            messagebox.showerror("Error", "No template selected")
-            return
-            
-        try:
-            # Get template from database
-            templates = self.db_manager.get_template_history(template_id=self.selected_template_id)
-            if not templates:
-                messagebox.showerror("Error", "Template not found")
+            # Get current prompt
+            prompts = self.db_manager.get_prompt_history(limit=1, prompt_id=self.selected_prompt_id)
+            if not prompts:
                 return
-                
-            template = templates[0]
             
-            # Extract template name and text from JSON structure if possible
-            template_name = template['name']
-            template_text = template['text']
+            prompt = prompts[0]
             
-            try:
-                if isinstance(template['text'], str) and (template['text'].startswith('{') or template['text'].startswith('[')):
-                    parsed_data = json.loads(template['text'])
-                    if isinstance(parsed_data, dict):
-                        if 'name' in parsed_data:
-                            template_name = parsed_data['name']
-                        if 'text' in parsed_data:
-                            template_text = parsed_data['text']
-            except json.JSONDecodeError:
-                # If parsing fails, use the raw text
-                pass
+            # Toggle favorite status
+            new_favorite = not prompt['favorite']
             
-            # Update template name to indicate it's a clone
-            template_name = f"{template_name} (Clone)"
+            # Update in database
+            self.db_manager.update_prompt(self.selected_prompt_id, favorite=new_favorite)
             
-            # Load template data into editor
-            self.template_name_entry.delete(0, tk.END)
-            self.template_name_entry.insert(0, template_name)
+            # Refresh prompt list
+            self.search_prompts()
             
-            # Load template text into text area
-            self.template_text.delete("1.0", tk.END)
-            self.template_text.insert("1.0", template_text)
-            
-            # Clear selected template ID to ensure we create a new one
-            self.selected_template_id = None
-            
-            messagebox.showinfo("Clone Template", "Template cloned. Make your changes and click 'Save Template' to create a new template")
+            # Show confirmation
+            status = "added to" if new_favorite else "removed from"
+            messagebox.showinfo("Success", f"Prompt {status} favorites")
         except Exception as e:
-            logger.error(f"Error cloning template: {str(e)}")
-            messagebox.showerror("Error", f"Failed to clone template: {str(e)}")
-            
-    def extract_template_variables(self, template_text):
-        """Extract variable names from a template text.
+            logger.error(f"Error toggling favorite: {str(e)}")
+            messagebox.showerror("Error", f"Failed to update favorite status: {str(e)}")
+    
+    def search_generations(self):
+        """Search for generations based on current filters."""
+        if not self.db_manager:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
+                return
         
-        Variables are identified by {{variable_name}} pattern.
+        try:
+            # Get date parameters
+            date_from = self.date_from_var.get().strip()
+            date_to = self.date_to_var.get().strip()
+            
+            # Get generations from database
+            generations = self.db_manager.get_generation_history(
+                limit=50,
+                date_from=date_from if date_from else None,
+                date_to=date_to if date_to else None
+            )
+            
+            # Clear listbox
+            self.generation_listbox.delete(0, tk.END)
+            
+            # Store generation IDs in a list for reference
+            self.generation_ids = []
+            
+            # Add generations to listbox
+            for gen in generations:
+                # Format display text
+                date_str = gen['generation_date'].split('T')[0]
+                prompt_text = gen['prompt_text'] if gen['prompt_text'] else "Unknown prompt"
+                display_text = f"{date_str}: {prompt_text[:50]}{'...' if len(prompt_text) > 50 else ''}"
+                
+                # Store the generation ID in our list
+                self.generation_ids.append(gen['id'])
+                
+                # Add to listbox
+                self.generation_listbox.insert(tk.END, display_text)
+            
+            if not generations:
+                self.generation_listbox.insert(tk.END, "No generations found")
+                self.generation_ids = []
+        except Exception as e:
+            logger.error(f"Error searching generations: {str(e)}")
+            messagebox.showerror("Error", f"Failed to search generations: {str(e)}")
+    
+    def on_generation_selected(self, event):
+        """Handle generation selection event."""
+        if not self.db_manager or not hasattr(self, 'generation_ids'):
+            return
+        
+        # Get selected index
+        selection = self.generation_listbox.curselection()
+        if not selection or not self.generation_ids:
+            return
+        
+        # Get generation ID from our list
+        try:
+            index = selection[0]
+            if index >= len(self.generation_ids):
+                return
+            
+            generation_id = self.generation_ids[index]
+            
+            # Get generation from database
+            generations = self.db_manager.get_generation_history(limit=1, generation_id=generation_id)
+            if not generations:
+                return
+            
+            generation = generations[0]
+            
+            # Update generation details
+            self.generation_details_text.delete("1.0", tk.END)
+            
+            # Format details
+            details = f"Date: {generation['generation_date']}\n"
+            details += f"Prompt: {generation['prompt_text']}\n"
+            details += f"Image: {generation['image_path']}\n"
+            
+            if generation['parameters']:
+                params = generation['parameters']
+                details += f"Size: {params.get('size', 'Unknown')}\n"
+                details += f"Model: {params.get('model', 'Unknown')}\n"
+                if 'quality' in params:
+                    details += f"Quality: {params['quality']}\n"
+                if 'style' in params:
+                    details += f"Style: {params['style']}\n"
+            
+            details += f"Tokens: {generation['token_usage']}\n"
+            details += f"Cost: ${generation['cost']:.4f}\n"
+            
+            self.generation_details_text.insert("1.0", details)
+            
+            # Store selected generation
+            self.selected_generation = generation
+        except Exception as e:
+            logger.error(f"Error getting generation details: {str(e)}")
+    
+    def view_selected_generation(self):
+        """View the selected generation's image."""
+        if not hasattr(self, 'selected_generation'):
+            return
+        
+        image_path = self.selected_generation['image_path']
+        if not image_path or not os.path.exists(image_path):
+            messagebox.showerror("Error", "Image file not found")
+            return
+        
+        try:
+            # Open the image with the default image viewer
+            os.startfile(image_path)
+        except Exception as e:
+            logger.error(f"Error opening image: {str(e)}")
+            messagebox.showerror("Error", f"Failed to open image: {str(e)}")
+    
+    def use_selected_generation_prompt(self):
+        """Use the prompt from the selected generation for a new image."""
+        if not hasattr(self, 'selected_generation'):
+            return
+        
+        prompt_text = self.selected_generation['prompt_text']
+        if not prompt_text:
+            messagebox.showerror("Error", "No prompt text available")
+            return
+        
+        # Set prompt in generation tab
+        self.notebook.select(0)  # Switch to generation tab
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", prompt_text)
+
+    def delete_selected_prompt(self):
+        """Delete the selected prompt from the database."""
+        if not hasattr(self, 'selected_prompt_id') or not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this prompt?"):
+                return
+            
+            # Delete from database
+            success = self.db_manager.delete_prompt(self.selected_prompt_id)
+            
+            if success:
+                # Refresh prompt list
+                self.search_prompts()
+                
+                # Clear selection
+                self.selected_prompt_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_prompt_id'):
+                    delattr(self, 'selected_prompt_id')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "Prompt deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete prompt")
+        except Exception as e:
+            logger.error(f"Error deleting prompt: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete prompt: {str(e)}")
+    
+    def clear_all_prompts(self):
+        """Clear all prompts from the database."""
+        if not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete All", 
+                                      "Are you sure you want to delete ALL prompts?\n\nThis action cannot be undone!",
+                                      icon='warning'):
+                return
+            
+            # Delete all prompts
+            success = self.db_manager.clear_all_prompts()
+            
+            if success:
+                # Refresh prompt list
+                self.search_prompts()
+                
+                # Clear selection
+                self.selected_prompt_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_prompt_id'):
+                    delattr(self, 'selected_prompt_id')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "All prompts deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete prompts")
+        except Exception as e:
+            logger.error(f"Error deleting all prompts: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete all prompts: {str(e)}")
+    
+    def delete_selected_generation(self):
+        """Delete the selected generation from the database."""
+        if not hasattr(self, 'selected_generation') or not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this generation?"):
+                return
+            
+            # Delete from database
+            success = self.db_manager.delete_generation(self.selected_generation['id'])
+            
+            if success:
+                # Refresh generation list
+                self.search_generations()
+                
+                # Clear selection
+                self.generation_details_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_generation'):
+                    delattr(self, 'selected_generation')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "Generation deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete generation")
+        except Exception as e:
+            logger.error(f"Error deleting generation: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete generation: {str(e)}")
+    
+    def clear_all_generations(self):
+        """Clear all generations from the database."""
+        if not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete All", 
+                                      "Are you sure you want to delete ALL generations?\n\nThis action cannot be undone!",
+                                      icon='warning'):
+                return
+            
+            # Delete all generations
+            success = self.db_manager.clear_all_generations()
+            
+            if success:
+                # Refresh generation list
+                self.search_generations()
+                
+                # Clear selection
+                self.generation_details_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_generation'):
+                    delattr(self, 'selected_generation')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "All generations deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete generations")
+        except Exception as e:
+            logger.error(f"Error deleting all generations: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete all generations: {str(e)}")
+
+    def create_styled_button(self, parent, text, command, bg_color="#4CAF50", fg_color="white", hover_color=None, font=("Arial", 10), padx=10, pady=5, width=None, height=None, border_radius=5):
+        """Create a styled button with hover effect.
         
         Args:
-            template_text (str): The template text
+            parent: Parent widget
+            text: Button text
+            command: Button command
+            bg_color: Background color
+            fg_color: Foreground (text) color
+            hover_color: Color when hovered (defaults to darker version of bg_color)
+            font: Button font
+            padx: Horizontal padding
+            pady: Vertical padding
+            width: Button width
+            height: Button height
+            border_radius: Border radius for rounded corners
             
         Returns:
+            Button widget
+        """
+        if hover_color is None:
+            # Create a darker version of the background color for hover
+            r, g, b = parent.winfo_rgb(bg_color)
+            r = max(0, int(r / 65535 * 0.8 * 65535))
+            g = max(0, int(g / 65535 * 0.8 * 65535))
+            b = max(0, int(b / 65535 * 0.8 * 65535))
+            hover_color = f"#{r:04x}{g:04x}{b:04x}"
+        
+        button = Button(parent, text=text, command=command, bg=bg_color, fg=fg_color, 
+                       font=font, padx=padx, pady=pady, width=width, height=height,
+                       relief="flat", borderwidth=0)
+        
+        # Add hover effect
+        def on_enter(e):
+            button['background'] = hover_color
+            
+        def on_leave(e):
+            button['background'] = bg_color
+            
+        button.bind("<Enter>", on_enter)
+        button.bind("<Leave>", on_leave)
+        
+        return button
+
+    def create_styled_dropdown(self, parent, variable, options, bg_color="#FFFFFF", fg_color="#333333", 
+                              hover_color="#F0F0F0", font=("Arial", 10), width=None, padx=5, pady=2):
+        """Create a styled dropdown (OptionMenu) with hover effect.
+        
+        Args:
+            parent: Parent widget
+            variable: StringVar to store the selected value
+            options: List of options for the dropdown
+            bg_color: Background color
+            fg_color: Foreground (text) color
+            hover_color: Color when hovered
+            font: Dropdown font
+            width: Dropdown width
+            padx: Horizontal padding
+            pady: Vertical padding
+            
+        Returns:
+            OptionMenu widget
+        """
+        # Create the OptionMenu
+        dropdown = OptionMenu(parent, variable, *options)
+        
+        # Configure the dropdown style
+        dropdown.config(
+            font=font,
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=hover_color,
+            activeforeground=fg_color,
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground="#CCCCCC",
+            padx=padx,
+            pady=pady,
+            width=width
+        )
+        
+        # Configure the dropdown menu style
+        dropdown["menu"].config(
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=hover_color,
+            activeforeground=fg_color,
+            relief="flat",
+            borderwidth=0,
+            font=font
+        )
+        
+        return dropdown
+        
+    def create_styled_notebook(self, parent, tab_bg_color="#f0f0f0", tab_fg_color="#333333", 
+                              selected_bg_color="#4CAF50", selected_fg_color="white", 
+                              font=("Arial", 10)):
+        """Create a styled notebook (tabbed interface)."""
+        # Create a simple notebook
+        notebook = ttk.Notebook(parent)
+        
+        # Configure the style
+        style = ttk.Style()
+        
+        # Configure tab appearance with high contrast colors
+        style.configure('TNotebook', background='white')
+        style.configure('TNotebook.Tab', 
+                       background=tab_bg_color,
+                       foreground='black',  # Force black text for visibility
+                       font=font, 
+                       padding=[10, 5],
+                       borderwidth=1)
+        
+        # Map states to different appearances with high contrast
+        style.map('TNotebook.Tab',
+                 background=[("selected", selected_bg_color)],
+                 foreground=[("selected", "black")],  # Force black text for visibility
+                 expand=[("selected", [1, 1, 1, 0])])
+        
+        return notebook
+
+    def setup_template_management_ui(self):
+        """Set up the template management UI."""
+        # Use the existing templates tab
+        template_frame = self.templates_tab
+
+        # Split into left and right panes
+        template_panes = ttk.PanedWindow(template_frame, orient=tk.HORIZONTAL)    
+        template_panes.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    
+    def setup_prompt_history_ui(self, parent_frame):
+        """Set up the prompt history UI components."""
+        # Create a frame for controls
+        controls_frame = Frame(parent_frame, padx=10, pady=10)
+        controls_frame.pack(fill="x")
+        
+        # Search box
+        Label(controls_frame, text="Search:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.prompt_search_var = StringVar()
+        search_entry = tk.Entry(controls_frame, textvariable=self.prompt_search_var, width=30)
+        search_entry.pack(side="left", padx=(0, 10))
+        
+        # Search button
+        search_btn = self.create_styled_button(
+            controls_frame, 
+            text="Search", 
+            command=self.search_prompts,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        search_btn.pack(side="left", padx=(0, 20))
+        
+        # Favorites only checkbox
+        self.favorites_only_var = tk.BooleanVar(value=False)
+        favorites_check = tk.Checkbutton(controls_frame, text="Favorites Only", variable=self.favorites_only_var, command=self.search_prompts)
+        favorites_check.pack(side="left", padx=(0, 20))
+        
+        # Clear all prompts button
+        clear_all_btn = self.create_styled_button(
+            controls_frame, 
+            text="Clear All", 
+            command=self.clear_all_prompts, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        clear_all_btn.pack(side="right", padx=(10, 0))
+        
+        # Refresh button
+        refresh_btn = self.create_styled_button(
+            controls_frame, 
+            text="Refresh", 
+            command=self.search_prompts,
+            bg_color="#9e9e9e",
+            fg_color="white"
+        )
+        refresh_btn.pack(side="right")
+        
+        # Create a frame for the prompt list
+        list_frame = Frame(parent_frame, padx=10, pady=10)
+        list_frame.pack(fill="both", expand=True)
+        
+        # Create a listbox with scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        
+        self.prompt_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10), height=15)
+        self.prompt_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.prompt_listbox.yview)
+        
+        # Bind selection event
+        self.prompt_listbox.bind('<<ListboxSelect>>', self.on_prompt_selected)
+        
+        # Create a frame for prompt details
+        details_frame = Frame(parent_frame, padx=10, pady=10)
+        details_frame.pack(fill="x")
+        
+        # Prompt text
+        Label(details_frame, text="Prompt:", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.selected_prompt_text = Text(details_frame, height=3, width=60, wrap="word")
+        self.selected_prompt_text.pack(fill="x", pady=(0, 10))
+        
+        # Action buttons
+        buttons_frame = Frame(details_frame)
+        buttons_frame.pack(fill="x")
+        
+        use_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Use Prompt", 
+            command=self.use_selected_prompt,
+            bg_color="#4CAF50",
+            fg_color="white"
+        )
+        use_btn.pack(side="left", padx=(0, 10))
+        
+        favorite_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Toggle Favorite", 
+            command=self.toggle_favorite_prompt,
+            bg_color="#FFC107",
+            fg_color="black"
+        )
+        favorite_btn.pack(side="left", padx=(0, 10))
+        
+        delete_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Delete", 
+            command=self.delete_selected_prompt, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        delete_btn.pack(side="left", padx=(0, 10))
+        
+        # Load initial prompts
+        self.search_prompts()
+    
+    def setup_generation_history_ui(self, parent_frame):
+        """Set up the generation history UI components."""
+        # Create a frame for controls
+        controls_frame = Frame(parent_frame, padx=10, pady=10)
+        controls_frame.pack(fill="x")
+        
+        # Date range
+        Label(controls_frame, text="From:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.date_from_var = StringVar()
+        date_from_entry = tk.Entry(controls_frame, textvariable=self.date_from_var, width=10)
+        date_from_entry.pack(side="left", padx=(0, 10))
+        
+        Label(controls_frame, text="To:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.date_to_var = StringVar()
+        date_to_entry = tk.Entry(controls_frame, textvariable=self.date_to_var, width=10)
+        date_to_entry.pack(side="left", padx=(0, 10))
+        
+        # Search button
+        search_btn = self.create_styled_button(
+            controls_frame, 
+            text="Search", 
+            command=self.search_generations,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        search_btn.pack(side="left", padx=(0, 20))
+        
+        # Clear all generations button
+        clear_all_btn = self.create_styled_button(
+            controls_frame, 
+            text="Clear All", 
+            command=self.clear_all_generations, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        clear_all_btn.pack(side="right", padx=(10, 0))
+        
+        # Refresh button
+        refresh_btn = self.create_styled_button(
+            controls_frame, 
+            text="Refresh", 
+            command=self.search_generations,
+            bg_color="#9e9e9e",
+            fg_color="white"
+        )
+        refresh_btn.pack(side="right")
+        
+        # Create a frame for the generation list
+        list_frame = Frame(parent_frame, padx=10, pady=10)
+        list_frame.pack(fill="both", expand=True)
+        
+        # Create a listbox with scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.generation_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10), height=15)
+        self.generation_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.generation_listbox.yview)
+        
+        # Bind selection event
+        self.generation_listbox.bind('<<ListboxSelect>>', self.on_generation_selected)
+        
+        # Create a frame for generation details
+        details_frame = Frame(parent_frame, padx=10, pady=10)
+        details_frame.pack(fill="x")
+        
+        # Generation details
+        Label(details_frame, text="Details:", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.generation_details_text = Text(details_frame, height=5, width=60, wrap="word")
+        self.generation_details_text.pack(fill="x", pady=(0, 10))
+        
+        # Action buttons
+        buttons_frame = Frame(details_frame)
+        buttons_frame.pack(fill="x")
+        
+        view_btn = self.create_styled_button(
+            buttons_frame, 
+            text="View Image", 
+            command=self.view_selected_generation,
+            bg_color="#4CAF50",
+            fg_color="white"
+        )
+        view_btn.pack(side="left", padx=(0, 10))
+        
+        use_prompt_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Use Prompt", 
+            command=self.use_selected_generation_prompt,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        use_prompt_btn.pack(side="left", padx=(0, 10))
+        
+        delete_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Delete", 
+            command=self.delete_selected_generation, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        delete_btn.pack(side="left", padx=(0, 10))
+        
+        # Load initial generations
+        self.search_generations()
+    
+    def search_prompts(self):
+        """Search for prompts based on current filters."""
+        if not self.db_manager:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
+                return
+        
+        try:
+            # Get search parameters
+            search_term = self.prompt_search_var.get().strip()
+            favorites_only = self.favorites_only_var.get()
+            
+            # Get prompts from database
+            prompts = self.db_manager.get_prompt_history(
+                limit=50,
+                search=search_term if search_term else None,
+                favorites_only=favorites_only
+            )
+            
+            # Clear listbox
+            self.prompt_listbox.delete(0, tk.END)
+            
+            # Store prompt IDs in a list for reference
+            self.prompt_ids = []
+            
+            # Add prompts to listbox
+            for prompt in prompts:
+                # Format display text
+                display_text = f"{prompt['prompt_text'][:50]}{'...' if len(prompt['prompt_text']) > 50 else ''}"
+                if prompt['favorite']:
+                    display_text = "★ " + display_text
+                
+                # Store the prompt ID in our list
+                self.prompt_ids.append(prompt['id'])
+                
+                # Add to listbox
+                self.prompt_listbox.insert(tk.END, display_text)
+            
+            if not prompts:
+                self.prompt_listbox.insert(tk.END, "No prompts found")
+                self.prompt_ids = []
+        except Exception as e:
+            logger.error(f"Error searching prompts: {str(e)}")
+            messagebox.showerror("Error", f"Failed to search prompts: {str(e)}")
+    
+    def on_prompt_selected(self, event):
+        """Handle prompt selection event."""
+        if not self.db_manager or not hasattr(self, 'prompt_ids'):
+            return
+        
+        # Get selected index
+        selection = self.prompt_listbox.curselection()
+        if not selection or not self.prompt_ids:
+            return
+        
+        # Get prompt ID from our list
+        try:
+            index = selection[0]
+            if index >= len(self.prompt_ids):
+                return
+            
+            prompt_id = self.prompt_ids[index]
+            
+            # Get prompt from database
+            prompts = self.db_manager.get_prompt_history(limit=1, prompt_id=prompt_id)
+            if not prompts:
+                return
+            
+            prompt = prompts[0]
+            
+            # Update prompt text
+            self.selected_prompt_text.delete("1.0", tk.END)
+            self.selected_prompt_text.insert("1.0", prompt['prompt_text'])
+            
+            # Store selected prompt ID
+            self.selected_prompt_id = prompt['id']
+        except Exception as e:
+            logger.error(f"Error getting prompt details: {str(e)}")
+    
+    def use_selected_prompt(self):
+        """Use the selected prompt for image generation."""
+        # Get prompt text
+        prompt_text = self.selected_prompt_text.get("1.0", "end-1c").strip()
+        if not prompt_text:
+            return
+        
+        # Set prompt in generation tab
+        self.notebook.select(0)  # Switch to generation tab
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", prompt_text)
+    
+    def toggle_favorite_prompt(self):
+        """Toggle favorite status of the selected prompt."""
+        if not hasattr(self, 'selected_prompt_id') or not self.db_manager:
+            return
+        
+        try:
+            # Get current prompt
+            prompts = self.db_manager.get_prompt_history(limit=1, prompt_id=self.selected_prompt_id)
+            if not prompts:
+                return
+            
+            prompt = prompts[0]
+            
+            # Toggle favorite status
+            new_favorite = not prompt['favorite']
+            
+            # Update in database
+            self.db_manager.update_prompt(self.selected_prompt_id, favorite=new_favorite)
+            
+            # Refresh prompt list
+            self.search_prompts()
+            
+            # Show confirmation
+            status = "added to" if new_favorite else "removed from"
+            messagebox.showinfo("Success", f"Prompt {status} favorites")
+        except Exception as e:
+            logger.error(f"Error toggling favorite: {str(e)}")
+            messagebox.showerror("Error", f"Failed to update favorite status: {str(e)}")
+    
+    def search_generations(self):
+        """Search for generations based on current filters."""
+        if not self.db_manager:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
+                return
+        
+        try:
+            # Get date parameters
+            date_from = self.date_from_var.get().strip()
+            date_to = self.date_to_var.get().strip()
+            
+            # Get generations from database
+            generations = self.db_manager.get_generation_history(
+                limit=50,
+                date_from=date_from if date_from else None,
+                date_to=date_to if date_to else None
+            )
+            
+            # Clear listbox
+            self.generation_listbox.delete(0, tk.END)
+            
+            # Store generation IDs in a list for reference
+            self.generation_ids = []
+            
+            # Add generations to listbox
+            for gen in generations:
+                # Format display text
+                date_str = gen['generation_date'].split('T')[0]
+                prompt_text = gen['prompt_text'] if gen['prompt_text'] else "Unknown prompt"
+                display_text = f"{date_str}: {prompt_text[:50]}{'...' if len(prompt_text) > 50 else ''}"
+                
+                # Store the generation ID in our list
+                self.generation_ids.append(gen['id'])
+                
+                # Add to listbox
+                self.generation_listbox.insert(tk.END, display_text)
+            
+            if not generations:
+                self.generation_listbox.insert(tk.END, "No generations found")
+                self.generation_ids = []
+        except Exception as e:
+            logger.error(f"Error searching generations: {str(e)}")
+            messagebox.showerror("Error", f"Failed to search generations: {str(e)}")
+    
+    def on_generation_selected(self, event):
+        """Handle generation selection event."""
+        if not self.db_manager or not hasattr(self, 'generation_ids'):
+            return
+        
+        # Get selected index
+        selection = self.generation_listbox.curselection()
+        if not selection or not self.generation_ids:
+            return
+        
+        # Get generation ID from our list
+        try:
+            index = selection[0]
+            if index >= len(self.generation_ids):
+                return
+            
+            generation_id = self.generation_ids[index]
+            
+            # Get generation from database
+            generations = self.db_manager.get_generation_history(limit=1, generation_id=generation_id)
+            if not generations:
+                return
+            
+            generation = generations[0]
+            
+            # Update generation details
+            self.generation_details_text.delete("1.0", tk.END)
+            
+            # Format details
+            details = f"Date: {generation['generation_date']}\n"
+            details += f"Prompt: {generation['prompt_text']}\n"
+            details += f"Image: {generation['image_path']}\n"
+            
+            if generation['parameters']:
+                params = generation['parameters']
+                details += f"Size: {params.get('size', 'Unknown')}\n"
+                details += f"Model: {params.get('model', 'Unknown')}\n"
+                if 'quality' in params:
+                    details += f"Quality: {params['quality']}\n"
+                if 'style' in params:
+                    details += f"Style: {params['style']}\n"
+            
+            details += f"Tokens: {generation['token_usage']}\n"
+            details += f"Cost: ${generation['cost']:.4f}\n"
+            
+            self.generation_details_text.insert("1.0", details)
+            
+            # Store selected generation
+            self.selected_generation = generation
+        except Exception as e:
+            logger.error(f"Error getting generation details: {str(e)}")
+    
+    def view_selected_generation(self):
+        """View the selected generation's image."""
+        if not hasattr(self, 'selected_generation'):
+            return
+        
+        image_path = self.selected_generation['image_path']
+        if not image_path or not os.path.exists(image_path):
+            messagebox.showerror("Error", "Image file not found")
+            return
+        
+        try:
+            # Open the image with the default image viewer
+            os.startfile(image_path)
+        except Exception as e:
+            logger.error(f"Error opening image: {str(e)}")
+            messagebox.showerror("Error", f"Failed to open image: {str(e)}")
+    
+    def use_selected_generation_prompt(self):
+        """Use the prompt from the selected generation for a new image."""
+        if not hasattr(self, 'selected_generation'):
+            return
+        
+        prompt_text = self.selected_generation['prompt_text']
+        if not prompt_text:
+            messagebox.showerror("Error", "No prompt text available")
+            return
+        
+        # Set prompt in generation tab
+        self.notebook.select(0)  # Switch to generation tab
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", prompt_text)
+
+    def delete_selected_prompt(self):
+        """Delete the selected prompt from the database."""
+        if not hasattr(self, 'selected_prompt_id') or not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this prompt?"):
+                return
+            
+            # Delete from database
+            success = self.db_manager.delete_prompt(self.selected_prompt_id)
+            
+            if success:
+                # Refresh prompt list
+                self.search_prompts()
+                
+                # Clear selection
+                self.selected_prompt_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_prompt_id'):
+                    delattr(self, 'selected_prompt_id')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "Prompt deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete prompt")
+        except Exception as e:
+            logger.error(f"Error deleting prompt: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete prompt: {str(e)}")
+    
+    def clear_all_prompts(self):
+        """Clear all prompts from the database."""
+        if not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete All", 
+                                      "Are you sure you want to delete ALL prompts?\n\nThis action cannot be undone!",
+                                      icon='warning'):
+                return
+            
+            # Delete all prompts
+            success = self.db_manager.clear_all_prompts()
+            
+            if success:
+                # Refresh prompt list
+                self.search_prompts()
+                
+                # Clear selection
+                self.selected_prompt_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_prompt_id'):
+                    delattr(self, 'selected_prompt_id')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "All prompts deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete prompts")
+        except Exception as e:
+            logger.error(f"Error deleting all prompts: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete all prompts: {str(e)}")
+    
+    def delete_selected_generation(self):
+        """Delete the selected generation from the database."""
+        if not hasattr(self, 'selected_generation') or not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this generation?"):
+                return
+            
+            # Delete from database
+            success = self.db_manager.delete_generation(self.selected_generation['id'])
+            
+            if success:
+                # Refresh generation list
+                self.search_generations()
+                
+                # Clear selection
+                self.generation_details_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_generation'):
+                    delattr(self, 'selected_generation')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "Generation deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete generation")
+        except Exception as e:
+            logger.error(f"Error deleting generation: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete generation: {str(e)}")
+    
+    def clear_all_generations(self):
+        """Clear all generations from the database."""
+        if not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete All", 
+                                      "Are you sure you want to delete ALL generations?\n\nThis action cannot be undone!",
+                                      icon='warning'):
+                return
+            
+            # Delete all generations
+            success = self.db_manager.clear_all_generations()
+            
+            if success:
+                # Refresh generation list
+                self.search_generations()
+                
+                # Clear selection
+                self.generation_details_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_generation'):
+                    delattr(self, 'selected_generation')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "All generations deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete generations")
+        except Exception as e:
+            logger.error(f"Error deleting all generations: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete all generations: {str(e)}")
+
+    def create_styled_button(self, parent, text, command, bg_color="#4CAF50", fg_color="white", hover_color=None, font=("Arial", 10), padx=10, pady=5, width=None, height=None, border_radius=5):
+        """Create a styled button with hover effect.
+        
+        Args:
+            parent: Parent widget
+            text: Button text
+            command: Button command
+            bg_color: Background color
+            fg_color: Foreground (text) color
+            hover_color: Color when hovered (defaults to darker version of bg_color)
+            font: Button font
+            padx: Horizontal padding
+            pady: Vertical padding
+            width: Button width
+            height: Button height
+            border_radius: Border radius for rounded corners
+            
+        Returns:
+            Button widget
+        """
+        if hover_color is None:
+            # Create a darker version of the background color for hover
+            r, g, b = parent.winfo_rgb(bg_color)
+            r = max(0, int(r / 65535 * 0.8 * 65535))
+            g = max(0, int(g / 65535 * 0.8 * 65535))
+            b = max(0, int(b / 65535 * 0.8 * 65535))
+            hover_color = f"#{r:04x}{g:04x}{b:04x}"
+        
+        button = Button(parent, text=text, command=command, bg=bg_color, fg=fg_color, 
+                       font=font, padx=padx, pady=pady, width=width, height=height,
+                       relief="flat", borderwidth=0)
+        
+        # Add hover effect
+        def on_enter(e):
+            button['background'] = hover_color
+            
+        def on_leave(e):
+            button['background'] = bg_color
+            
+        button.bind("<Enter>", on_enter)
+        button.bind("<Leave>", on_leave)
+        
+        return button
+
+    def create_styled_dropdown(self, parent, variable, options, bg_color="#FFFFFF", fg_color="#333333", 
+                              hover_color="#F0F0F0", font=("Arial", 10), width=None, padx=5, pady=2):
+        """Create a styled dropdown (OptionMenu) with hover effect.
+        
+        Args:
+            parent: Parent widget
+            variable: StringVar to store the selected value
+            options: List of options for the dropdown
+            bg_color: Background color
+            fg_color: Foreground (text) color
+            hover_color: Color when hovered
+            font: Dropdown font
+            width: Dropdown width
+            padx: Horizontal padding
+            pady: Vertical padding
+            
+        Returns:
+            OptionMenu widget
+        """
+        # Create the OptionMenu
+        dropdown = OptionMenu(parent, variable, *options)
+        
+        # Configure the dropdown style
+        dropdown.config(
+            font=font,
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=hover_color,
+            activeforeground=fg_color,
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground="#CCCCCC",
+            padx=padx,
+            pady=pady,
+            width=width
+        )
+        
+        # Configure the dropdown menu style
+        dropdown["menu"].config(
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=hover_color,
+            activeforeground=fg_color,
+            relief="flat",
+            borderwidth=0,
+            font=font
+        )
+        
+        return dropdown
+        
+    def create_styled_notebook(self, parent, tab_bg_color="#f0f0f0", tab_fg_color="#333333", 
+                              selected_bg_color="#4CAF50", selected_fg_color="white", 
+                              font=("Arial", 10)):
+        """Create a styled notebook (tabbed interface)."""
+        # Create a simple notebook
+        notebook = ttk.Notebook(parent)
+        
+        # Configure the style
+        style = ttk.Style()
+        
+        # Configure tab appearance with high contrast colors
+        style.configure('TNotebook', background='white')
+        style.configure('TNotebook.Tab', 
+                       background=tab_bg_color,
+                       foreground='black',  # Force black text for visibility
+                       font=font, 
+                       padding=[10, 5],
+                       borderwidth=1)
+        
+        # Map states to different appearances with high contrast
+        style.map('TNotebook.Tab',
+                 background=[("selected", selected_bg_color)],
+                 foreground=[("selected", "black")],  # Force black text for visibility
+                 expand=[("selected", [1, 1, 1, 0])])
+        
+        return notebook
+
+    def setup_template_management_ui(self):
+        """Set up the template management UI."""
+        # Use the existing templates tab
+        template_frame = self.templates_tab
+
+        # Split into left and right panes
+        template_panes = ttk.PanedWindow(template_frame, orient=tk.HORIZONTAL)    
+        template_panes.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    
+    def setup_prompt_history_ui(self, parent_frame):
+        """Set up the prompt history UI components."""
+        # Create a frame for controls
+        controls_frame = Frame(parent_frame, padx=10, pady=10)
+        controls_frame.pack(fill="x")
+        
+        # Search box
+        Label(controls_frame, text="Search:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.prompt_search_var = StringVar()
+        search_entry = tk.Entry(controls_frame, textvariable=self.prompt_search_var, width=30)
+        search_entry.pack(side="left", padx=(0, 10))
+        
+        # Search button
+        search_btn = self.create_styled_button(
+            controls_frame, 
+            text="Search", 
+            command=self.search_prompts,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        search_btn.pack(side="left", padx=(0, 20))
+        
+        # Favorites only checkbox
+        self.favorites_only_var = tk.BooleanVar(value=False)
+        favorites_check = tk.Checkbutton(controls_frame, text="Favorites Only", variable=self.favorites_only_var, command=self.search_prompts)
+        favorites_check.pack(side="left", padx=(0, 20))
+        
+        # Clear all prompts button
+        clear_all_btn = self.create_styled_button(
+            controls_frame, 
+            text="Clear All", 
+            command=self.clear_all_prompts, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        clear_all_btn.pack(side="right", padx=(10, 0))
+        
+        # Refresh button
+        refresh_btn = self.create_styled_button(
+            controls_frame, 
+            text="Refresh", 
+            command=self.search_prompts,
+            bg_color="#9e9e9e",
+            fg_color="white"
+        )
+        refresh_btn.pack(side="right")
+        
+        # Create a frame for the prompt list
+        list_frame = Frame(parent_frame, padx=10, pady=10)
+        list_frame.pack(fill="both", expand=True)
+        
+        # Create a listbox with scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        
+        self.prompt_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10), height=15)
+        self.prompt_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.prompt_listbox.yview)
+        
+        # Bind selection event
+        self.prompt_listbox.bind('<<ListboxSelect>>', self.on_prompt_selected)
+        
+        # Create a frame for prompt details
+        details_frame = Frame(parent_frame, padx=10, pady=10)
+        details_frame.pack(fill="x")
+        
+        # Prompt text
+        Label(details_frame, text="Prompt:", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.selected_prompt_text = Text(details_frame, height=3, width=60, wrap="word")
+        self.selected_prompt_text.pack(fill="x", pady=(0, 10))
+        
+        # Action buttons
+        buttons_frame = Frame(details_frame)
+        buttons_frame.pack(fill="x")
+        
+        use_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Use Prompt", 
+            command=self.use_selected_prompt,
+            bg_color="#4CAF50",
+            fg_color="white"
+        )
+        use_btn.pack(side="left", padx=(0, 10))
+        
+        favorite_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Toggle Favorite", 
+            command=self.toggle_favorite_prompt,
+            bg_color="#FFC107",
+            fg_color="black"
+        )
+        favorite_btn.pack(side="left", padx=(0, 10))
+        
+        delete_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Delete", 
+            command=self.delete_selected_prompt, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        delete_btn.pack(side="left", padx=(0, 10))
+        
+        # Load initial prompts
+        self.search_prompts()
+    
+    def setup_generation_history_ui(self, parent_frame):
+        """Set up the generation history UI components."""
+        # Create a frame for controls
+        controls_frame = Frame(parent_frame, padx=10, pady=10)
+        controls_frame.pack(fill="x")
+        
+        # Date range
+        Label(controls_frame, text="From:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.date_from_var = StringVar()
+        date_from_entry = tk.Entry(controls_frame, textvariable=self.date_from_var, width=10)
+        date_from_entry.pack(side="left", padx=(0, 10))
+        
+        Label(controls_frame, text="To:", font=("Arial", 10)).pack(side="left", padx=(0, 5))
+        self.date_to_var = StringVar()
+        date_to_entry = tk.Entry(controls_frame, textvariable=self.date_to_var, width=10)
+        date_to_entry.pack(side="left", padx=(0, 10))
+        
+        # Search button
+        search_btn = self.create_styled_button(
+            controls_frame, 
+            text="Search", 
+            command=self.search_generations,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        search_btn.pack(side="left", padx=(0, 20))
+        
+        # Clear all generations button
+        clear_all_btn = self.create_styled_button(
+            controls_frame, 
+            text="Clear All", 
+            command=self.clear_all_generations, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        clear_all_btn.pack(side="right", padx=(10, 0))
+        
+        # Refresh button
+        refresh_btn = self.create_styled_button(
+            controls_frame, 
+            text="Refresh", 
+            command=self.search_generations,
+            bg_color="#9e9e9e",
+            fg_color="white"
+        )
+        refresh_btn.pack(side="right")
+        
+        # Create a frame for the generation list
+        list_frame = Frame(parent_frame, padx=10, pady=10)
+        list_frame.pack(fill="both", expand=True)
+        
+        # Create a listbox with scrollbar
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.generation_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10), height=15)
+        self.generation_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.generation_listbox.yview)
+        
+        # Bind selection event
+        self.generation_listbox.bind('<<ListboxSelect>>', self.on_generation_selected)
+        
+        # Create a frame for generation details
+        details_frame = Frame(parent_frame, padx=10, pady=10)
+        details_frame.pack(fill="x")
+        
+        # Generation details
+        Label(details_frame, text="Details:", font=("Arial", 10, "bold")).pack(anchor="w")
+        self.generation_details_text = Text(details_frame, height=5, width=60, wrap="word")
+        self.generation_details_text.pack(fill="x", pady=(0, 10))
+        
+        # Action buttons
+        buttons_frame = Frame(details_frame)
+        buttons_frame.pack(fill="x")
+        
+        view_btn = self.create_styled_button(
+            buttons_frame, 
+            text="View Image", 
+            command=self.view_selected_generation,
+            bg_color="#4CAF50",
+            fg_color="white"
+        )
+        view_btn.pack(side="left", padx=(0, 10))
+        
+        use_prompt_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Use Prompt", 
+            command=self.use_selected_generation_prompt,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        use_prompt_btn.pack(side="left", padx=(0, 10))
+        
+        delete_btn = self.create_styled_button(
+            buttons_frame, 
+            text="Delete", 
+            command=self.delete_selected_generation, 
+            bg_color="#ff6b6b", 
+            fg_color="white"
+        )
+        delete_btn.pack(side="left", padx=(0, 10))
+        
+        # Load initial generations
+        self.search_generations()
+    
+    def search_prompts(self):
+        """Search for prompts based on current filters."""
+        if not self.db_manager:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
+                return
+        
+        try:
+            # Get search parameters
+            search_term = self.prompt_search_var.get().strip()
+            favorites_only = self.favorites_only_var.get()
+            
+            # Get prompts from database
+            prompts = self.db_manager.get_prompt_history(
+                limit=50,
+                search=search_term if search_term else None,
+                favorites_only=favorites_only
+            )
+            
+            # Clear listbox
+            self.prompt_listbox.delete(0, tk.END)
+            
+            # Store prompt IDs in a list for reference
+            self.prompt_ids = []
+            
+            # Add prompts to listbox
+            for prompt in prompts:
+                # Format display text
+                display_text = f"{prompt['prompt_text'][:50]}{'...' if len(prompt['prompt_text']) > 50 else ''}"
+                if prompt['favorite']:
+                    display_text = "★ " + display_text
+                
+                # Store the prompt ID in our list
+                self.prompt_ids.append(prompt['id'])
+                
+                # Add to listbox
+                self.prompt_listbox.insert(tk.END, display_text)
+            
+            if not prompts:
+                self.prompt_listbox.insert(tk.END, "No prompts found")
+                self.prompt_ids = []
+        except Exception as e:
+            logger.error(f"Error searching prompts: {str(e)}")
+            messagebox.showerror("Error", f"Failed to search prompts: {str(e)}")
+    
+    def on_prompt_selected(self, event):
+        """Handle prompt selection event."""
+        if not self.db_manager or not hasattr(self, 'prompt_ids'):
+            return
+        
+        # Get selected index
+        selection = self.prompt_listbox.curselection()
+        if not selection or not self.prompt_ids:
+            return
+        
+        # Get prompt ID from our list
+        try:
+            index = selection[0]
+            if index >= len(self.prompt_ids):
+                return
+            
+            prompt_id = self.prompt_ids[index]
+            
+            # Get prompt from database
+            prompts = self.db_manager.get_prompt_history(limit=1, prompt_id=prompt_id)
+            if not prompts:
+                return
+            
+            prompt = prompts[0]
+            
+            # Update prompt text
+            self.selected_prompt_text.delete("1.0", tk.END)
+            self.selected_prompt_text.insert("1.0", prompt['prompt_text'])
+            
+            # Store selected prompt ID
+            self.selected_prompt_id = prompt['id']
+        except Exception as e:
+            logger.error(f"Error getting prompt details: {str(e)}")
+    
+    def use_selected_prompt(self):
+        """Use the selected prompt for image generation."""
+        # Get prompt text
+        prompt_text = self.selected_prompt_text.get("1.0", "end-1c").strip()
+        if not prompt_text:
+            return
+        
+        # Set prompt in generation tab
+        self.notebook.select(0)  # Switch to generation tab
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", prompt_text)
+    
+    def toggle_favorite_prompt(self):
+        """Toggle favorite status of the selected prompt."""
+        if not hasattr(self, 'selected_prompt_id') or not self.db_manager:
+            return
+        
+        try:
+            # Get current prompt
+            prompts = self.db_manager.get_prompt_history(limit=1, prompt_id=self.selected_prompt_id)
+            if not prompts:
+                return
+            
+            prompt = prompts[0]
+            
+            # Toggle favorite status
+            new_favorite = not prompt['favorite']
+            
+            # Update in database
+            self.db_manager.update_prompt(self.selected_prompt_id, favorite=new_favorite)
+            
+            # Refresh prompt list
+            self.search_prompts()
+            
+            # Show confirmation
+            status = "added to" if new_favorite else "removed from"
+            messagebox.showinfo("Success", f"Prompt {status} favorites")
+        except Exception as e:
+            logger.error(f"Error toggling favorite: {str(e)}")
+            messagebox.showerror("Error", f"Failed to update favorite status: {str(e)}")
+    
+    def search_generations(self):
+        """Search for generations based on current filters."""
+        if not self.db_manager:
+            try:
+                self.db_manager = DatabaseManager()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
+                return
+        
+        try:
+            # Get date parameters
+            date_from = self.date_from_var.get().strip()
+            date_to = self.date_to_var.get().strip()
+            
+            # Get generations from database
+            generations = self.db_manager.get_generation_history(
+                limit=50,
+                date_from=date_from if date_from else None,
+                date_to=date_to if date_to else None
+            )
+            
+            # Clear listbox
+            self.generation_listbox.delete(0, tk.END)
+            
+            # Store generation IDs in a list for reference
+            self.generation_ids = []
+            
+            # Add generations to listbox
+            for gen in generations:
+                # Format display text
+                date_str = gen['generation_date'].split('T')[0]
+                prompt_text = gen['prompt_text'] if gen['prompt_text'] else "Unknown prompt"
+                display_text = f"{date_str}: {prompt_text[:50]}{'...' if len(prompt_text) > 50 else ''}"
+                
+                # Store the generation ID in our list
+                self.generation_ids.append(gen['id'])
+                
+                # Add to listbox
+                self.generation_listbox.insert(tk.END, display_text)
+            
+            if not generations:
+                self.generation_listbox.insert(tk.END, "No generations found")
+                self.generation_ids = []
+        except Exception as e:
+            logger.error(f"Error searching generations: {str(e)}")
+            messagebox.showerror("Error", f"Failed to search generations: {str(e)}")
+    
+    def on_generation_selected(self, event):
+        """Handle generation selection event."""
+        if not self.db_manager or not hasattr(self, 'generation_ids'):
+            return
+        
+        # Get selected index
+        selection = self.generation_listbox.curselection()
+        if not selection or not self.generation_ids:
+            return
+        
+        # Get generation ID from our list
+        try:
+            index = selection[0]
+            if index >= len(self.generation_ids):
+                return
+            
+            generation_id = self.generation_ids[index]
+            
+            # Get generation from database
+            generations = self.db_manager.get_generation_history(limit=1, generation_id=generation_id)
+            if not generations:
+                return
+            
+            generation = generations[0]
+            
+            # Update generation details
+            self.generation_details_text.delete("1.0", tk.END)
+            
+            # Format details
+            details = f"Date: {generation['generation_date']}\n"
+            details += f"Prompt: {generation['prompt_text']}\n"
+            details += f"Image: {generation['image_path']}\n"
+            
+            if generation['parameters']:
+                params = generation['parameters']
+                details += f"Size: {params.get('size', 'Unknown')}\n"
+                details += f"Model: {params.get('model', 'Unknown')}\n"
+                if 'quality' in params:
+                    details += f"Quality: {params['quality']}\n"
+                if 'style' in params:
+                    details += f"Style: {params['style']}\n"
+            
+            details += f"Tokens: {generation['token_usage']}\n"
+            details += f"Cost: ${generation['cost']:.4f}\n"
+            
+            self.generation_details_text.insert("1.0", details)
+            
+            # Store selected generation
+            self.selected_generation = generation
+        except Exception as e:
+            logger.error(f"Error getting generation details: {str(e)}")
+    
+    def view_selected_generation(self):
+        """View the selected generation's image."""
+        if not hasattr(self, 'selected_generation'):
+            return
+        
+        image_path = self.selected_generation['image_path']
+        if not image_path or not os.path.exists(image_path):
+            messagebox.showerror("Error", "Image file not found")
+            return
+        
+        try:
+            # Open the image with the default image viewer
+            os.startfile(image_path)
+        except Exception as e:
+            logger.error(f"Error opening image: {str(e)}")
+            messagebox.showerror("Error", f"Failed to open image: {str(e)}")
+    
+    def use_selected_generation_prompt(self):
+        """Use the prompt from the selected generation for a new image."""
+        if not hasattr(self, 'selected_generation'):
+            return
+        
+        prompt_text = self.selected_generation['prompt_text']
+        if not prompt_text:
+            messagebox.showerror("Error", "No prompt text available")
+            return
+        
+        # Set prompt in generation tab
+        self.notebook.select(0)  # Switch to generation tab
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", prompt_text)
+
+    def delete_selected_prompt(self):
+        """Delete the selected prompt from the database."""
+        if not hasattr(self, 'selected_prompt_id') or not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this prompt?"):
+                return
+            
+            # Delete from database
+            success = self.db_manager.delete_prompt(self.selected_prompt_id)
+            
+            if success:
+                # Refresh prompt list
+                self.search_prompts()
+                
+                # Clear selection
+                self.selected_prompt_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_prompt_id'):
+                    delattr(self, 'selected_prompt_id')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "Prompt deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete prompt")
+        except Exception as e:
+            logger.error(f"Error deleting prompt: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete prompt: {str(e)}")
+    
+    def clear_all_prompts(self):
+        """Clear all prompts from the database."""
+        if not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete All", 
+                                      "Are you sure you want to delete ALL prompts?\n\nThis action cannot be undone!",
+                                      icon='warning'):
+                return
+            
+            # Delete all prompts
+            success = self.db_manager.clear_all_prompts()
+            
+            if success:
+                # Refresh prompt list
+                self.search_prompts()
+                
+                # Clear selection
+                self.selected_prompt_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_prompt_id'):
+                    delattr(self, 'selected_prompt_id')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "All prompts deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete prompts")
+        except Exception as e:
+            logger.error(f"Error deleting all prompts: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete all prompts: {str(e)}")
+    
+    def delete_selected_generation(self):
+        """Delete the selected generation from the database."""
+        if not hasattr(self, 'selected_generation') or not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete", "Are you sure you want to delete this generation?"):
+                return
+            
+            # Delete from database
+            success = self.db_manager.delete_generation(self.selected_generation['id'])
+            
+            if success:
+                # Refresh generation list
+                self.search_generations()
+                
+                # Clear selection
+                self.generation_details_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_generation'):
+                    delattr(self, 'selected_generation')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "Generation deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete generation")
+        except Exception as e:
+            logger.error(f"Error deleting generation: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete generation: {str(e)}")
+    
+    def clear_all_generations(self):
+        """Clear all generations from the database."""
+        if not self.db_manager:
+            return
+        
+        try:
+            # Confirm deletion
+            if not messagebox.askyesno("Confirm Delete All", 
+                                      "Are you sure you want to delete ALL generations?\n\nThis action cannot be undone!",
+                                      icon='warning'):
+                return
+            
+            # Delete all generations
+            success = self.db_manager.clear_all_generations()
+            
+            if success:
+                # Refresh generation list
+                self.search_generations()
+                
+                # Clear selection
+                self.generation_details_text.delete("1.0", tk.END)
+                if hasattr(self, 'selected_generation'):
+                    delattr(self, 'selected_generation')
+                
+                # Show confirmation
+                messagebox.showinfo("Success", "All generations deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete generations")
+        except Exception as e:
+            logger.error(f"Error deleting all generations: {str(e)}")
+            messagebox.showerror("Error", f"Failed to delete all generations: {str(e)}")
+
+    def create_styled_button(self, parent, text, command, bg_color="#4CAF50", fg_color="white", hover_color=None, font=("Arial", 10), padx=10, pady=5, width=None, height=None, border_radius=5):
+        """Create a styled button with hover effect.
+        
+        Args:
+            parent: Parent widget
+            text: Button text
+            command: Button command
+            bg_color: Background color
+            fg_color: Foreground (text) color
+            hover_color: Color when hovered (defaults to darker version of bg_color)
+            font: Button font
+            padx: Horizontal padding
+            pady: Vertical padding
+            width: Button width
+            height: Button height
+            border_radius: Border radius for rounded corners
+            
+        Returns:
+            Button widget
+        """
+        if hover_color is None:
+            # Create a darker version of the background color for hover
+            r, g, b = parent.winfo_rgb(bg_color)
+            r = max(0, int(r / 65535 * 0.8 * 65535))
+            g = max(0, int(g / 65535 * 0.8 * 65535))
+            b = max(0, int(b / 65535 * 0.8 * 65535))
+            hover_color = f"#{r:04x}{g:04x}{b:04x}"
+        
+        button = Button(parent, text=text, command=command, bg=bg_color, fg=fg_color, 
+                       font=font, padx=padx, pady=pady, width=width, height=height,
+                       relief="flat", borderwidth=0)
+        
+        # Add hover effect
+        def on_enter(e):
+            button['background'] = hover_color
+            
+        def on_leave(e):
+            button['background'] = bg_color
+            
+        button.bind("<Enter>", on_enter)
+        button.bind("<Leave>", on_leave)
+        
+        return button
+
+    def create_styled_dropdown(self, parent, variable, options, bg_color="#FFFFFF", fg_color="#333333", 
+                              hover_color="#F0F0F0", font=("Arial", 10), width=None, padx=5, pady=2):
+        """Create a styled dropdown (OptionMenu) with hover effect.
+        
+        Args:
+            parent: Parent widget
+            variable: StringVar to store the selected value
+            options: List of options for the dropdown
+            bg_color: Background color
+            fg_color: Foreground (text) color
+            hover_color: Color when hovered
+            font: Dropdown font
+            width: Dropdown width
+            padx: Horizontal padding
+            pady: Vertical padding
+            
+        Returns:
+            OptionMenu widget
+        """
+        # Create the OptionMenu
+        dropdown = OptionMenu(parent, variable, *options)
+        
+        # Configure the dropdown style
+        dropdown.config(
+            font=font,
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=hover_color,
+            activeforeground=fg_color,
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground="#CCCCCC",
+            padx=padx,
+            pady=pady,
+            width=width
+        )
+        
+        # Configure the dropdown menu style
+        dropdown["menu"].config(
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=hover_color,
+            activeforeground=fg_color,
+            relief="flat",
+            borderwidth=0,
+            font=font
+        )
+        
+        return dropdown
+        
+    def create_styled_notebook(self, parent, tab_bg_color="#f0f0f0", tab_fg_color="#333333", 
+                              selected_bg_color="#4CAF50", selected_fg_color="white", 
+                              font=("Arial", 10)):
+        """Create a styled notebook (tabbed interface)."""
+        # Create a simple notebook
+        notebook = ttk.Notebook(parent)
+        
+        # Configure the style
+        style = ttk.Style()
+        
+        # Configure tab appearance with high contrast colors
+        style.configure('TNotebook', background='white')
+        style.configure('TNotebook.Tab', 
             list: List of unique variable names
         """
         import re

@@ -24,6 +24,7 @@ ENV/
 data/*.db
 
 # Generated output
+output/
 outputs/
 data/
 

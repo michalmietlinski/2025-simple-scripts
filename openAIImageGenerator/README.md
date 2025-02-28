@@ -1,92 +1,52 @@
 # DALL-E Image Generator
 
-A desktop application for generating images using OpenAI's DALL-E models with advanced prompt management, history tracking, and usage statistics.
+A desktop application for generating images using OpenAI's DALL-E API.
 
-## Project Overview
+## Features
 
-This application provides a user-friendly interface for generating images using OpenAI's DALL-E models. It includes features for managing prompts, tracking generation history, and monitoring API usage.
+- Generate images using DALL-E 2 or DALL-E 3
+- Customize image size, quality, and style
+- Save generated images with prompts
+- View generation history
+- Manage favorite prompts
+- Track usage and costs
 
-## Key Features
+## Requirements
 
-- **Image Generation**: Generate images using DALL-E 3 and DALL-E 2 models
-- **Customization Options**: Select size, quality, and style parameters
-- **Prompt Management**: Save, search, and reuse prompts
-- **History Tracking**: View and manage generation history
-- **Database Storage**: Store prompts, generations, and usage statistics
-- **Usage Monitoring**: Track token usage and associated costs
-- **Full Resolution Viewing**: Examine generated images in their original resolution
-- **Output Directory Access**: Easily access saved images
-- **History Management**: Delete individual prompts/generations or clear entire history
-- **Modern UI**: Styled buttons, tabs, and dropdowns with hover effects for improved user experience
-- **Cross-Platform Compatibility**: UI components designed to work across different operating systems and Python versions
-
-## Project Structure
-
-The project is organized into the following directories:
-
-- `utils/`: Utility modules for various functionalities
-- `outputs/`: Directory for storing generated images
-- `data/`: Database and configuration files
-- `verification/`: Scripts for verifying implementation phases
-- `readmes/`: Detailed documentation for each phase
-- `tests/`: Test files for various components of the application
-
-## Implementation Phases
-
-The project has been implemented in phases, each building upon the previous:
-
-1. **[Phase 1: Project Setup](readmes/README_PHASE1.md)** - Basic application structure, configuration management, and utility modules
-2. **[Phase 2: OpenAI Integration](readmes/README_PHASE2.md)** - Integration with OpenAI API and image generation functionality
-3. **[Phase 3: Database Implementation](readmes/README_PHASE3.md)** - Database for storing prompts, generations, and usage statistics
-4. **[Phase 4: GUI Implementation](readmes/README_PHASE4.md)** - Comprehensive graphical user interface with advanced viewing options
-
-## Feature Documentation
-
-- **[Delete Functionality](readmes/README_DELETE_FUNCTIONALITY.md)** - Detailed documentation on the prompt and generation delete features
-- **[UI Improvements](readmes/README_UI_IMPROVEMENTS.md)** - Information about the modern UI with styled buttons
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.8 or higher
+- Python 3.8+
 - OpenAI API key
 - Required Python packages (see requirements.txt)
 
-### Installation
+## Installation
 
 1. Clone the repository
 2. Install dependencies:
-   ```
+   ```bash
    pip install -r requirements.txt
    ```
-3. Set up your OpenAI API key in the application or as an environment variable
+3. Create a `.env` file in the project root and add your OpenAI API key:
+   ```
+   OPENAI_API_KEY=your_api_key_here
+   ```
 
-### Running the Application
+## Usage
 
-```
+Run the application:
+```bash
 python app.py
 ```
 
-## Testing
+The application will open with two main tabs:
+1. **Generate Images**: Enter prompts and generate images
+2. **History**: View past generations and manage prompts
 
-The application includes a comprehensive test suite in the `tests/` directory. To run all tests:
+## Configuration
 
-```
-cd tests
-python run_tests.py
-```
-
-## Verification
-
-Each phase includes verification scripts to ensure proper implementation:
-
-```
-python -m verification.verify_phase1
-python -m verification.verify_phase2
-python -m verification.verify_phase3
-```
+The application creates the following directories:
+- `outputs/`: Generated images
+- `data/`: SQLite database for history and settings
+- `logs/`: Application logs
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+MIT License 

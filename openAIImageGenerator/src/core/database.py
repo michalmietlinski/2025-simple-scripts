@@ -1244,14 +1244,14 @@ class DatabaseManager:
             # Use creation_date from DB but map it to generation_date in the result
             self.cursor.execute(
                 """
-                SELECT 
+                    SELECT 
                     g.id, g.prompt_id, g.image_path, g.parameters, 
                     g.token_usage, g.cost, g.creation_date,
                     p.prompt_text
                 FROM generation_history g
                 JOIN prompt_history p ON g.prompt_id = p.id
                 ORDER BY g.creation_date DESC
-                LIMIT ?
+                    LIMIT ?
                 """,
                 (limit,)
             )

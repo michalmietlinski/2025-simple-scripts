@@ -137,9 +137,9 @@ class TemplateProcessor:
             
             # Find matching variable
             for var in variables:
-                if var["name"] == variable_name and var["values"]:
+                if var.name == variable_name and var.values:
                     # Return random value
-                    return random.choice(var["values"])
+                    return random.choice(var.values)
             
             return None
             

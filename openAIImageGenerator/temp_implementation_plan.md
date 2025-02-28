@@ -31,7 +31,7 @@
   - Add zoom in/out functionality for images
   - Implement image scrolling for large images
 
-- [ ] Allow removing elements from history
+- [x] Allow removing elements from history
   - Add delete button to history items
   - Implement confirmation dialog
   - Update database to reflect deletions
@@ -52,7 +52,7 @@
   - Corrected type mismatch between database and UI
   - Ensured proper data conversion between components
 
-- [ ] Display usage statistics next to generated image
+- [x] Display usage statistics next to generated image
   - Show token count
   - Show cost
   - Show model used

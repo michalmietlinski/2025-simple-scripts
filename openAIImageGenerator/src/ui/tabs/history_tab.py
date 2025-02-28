@@ -358,6 +358,9 @@ class HistoryTab(ttk.Frame):
                 # Update rating
                 self.rating_var.set(str(generation.user_rating))
                 
+                # Display usage statistics
+                self._display_usage_statistics(generation)
+                
         except Exception as e:
             logger.error(f"Failed to load preview: {str(e)}")
             self._set_placeholder_preview()
@@ -431,8 +434,16 @@ class HistoryTab(ttk.Frame):
         try:
             gen_id = int(self.tree.item(selection[0])["tags"][0])
             
-            # Delete from database and file system
-            self.db_manager.delete_generation(gen_id)
+            # Delete from database and get image path
+            image_path = self.db_manager.delete_generation(gen_id)
+            
+            # Delete the image file if path was returned
+            if image_path:
+                try:
+                    self.file_manager.delete_image(image_path)
+                    logger.info(f"Deleted image file: {image_path}")
+                except Exception as e:
+                    logger.warning(f"Could not delete image file: {str(e)}")
             
             # Refresh display
             self._load_history()
@@ -493,23 +504,81 @@ class HistoryTab(ttk.Frame):
         self._update_image()
 
     def _update_image(self):
-        """Update the image on the canvas based on the current zoom level."""
-        if self.current_image:
-            self.canvas.delete(self.canvas_image_id)
+        """Update the displayed image based on zoom level."""
+        if not self.current_image:
+            return
+            
+        # Calculate new dimensions
+        width, height = self.current_image.size
+        new_width = int(width * self.zoom_level)
+        new_height = int(height * self.zoom_level)
+        
+        # Resize image
+        resized = self.current_image.resize((new_width, new_height), Image.LANCZOS)
+        self.preview_image = ImageTk.PhotoImage(resized)
+        
+        # Clear canvas and display image
+        self.canvas.delete("all")
+        self.canvas_image_id = self.canvas.create_image(
+            0, 0,
+            anchor="nw",
+            image=self.preview_image
+        )
+        
+        # Configure canvas scroll region
+        self.canvas.config(scrollregion=(0, 0, new_width, new_height))
+        
+        # Re-display usage statistics if we have a selected generation
+        selection = self.tree.selection()
+        if selection:
+            try:
+                gen_id = int(self.tree.item(selection[0])["tags"][0])
+                generation = self.db_manager.get_generation(gen_id)
+                if generation:
+                    self._display_usage_statistics(generation)
+            except Exception as e:
+                logger.error(f"Failed to redisplay usage statistics: {str(e)}")
 
-            # Resize the image based on the zoom level
-            width = int(self.current_image.width * self.zoom_level)
-            height = int(self.current_image.height * self.zoom_level)
-            resized_image = self.current_image.resize((width, height), Image.Resampling.LANCZOS)
-
-            # Convert the resized image to a PhotoImage
-            self.preview_image = ImageTk.PhotoImage(resized_image)
-
-            # Create an image ID for the canvas
-            self.canvas_image_id = self.canvas.create_image(0, 0, anchor="nw", image=self.preview_image)
-
-            # Configure canvas scrollbars
-            self.canvas.config(scrollregion=self.canvas.bbox(self.canvas_image_id))
+    def _display_usage_statistics(self, generation):
+        """Display usage statistics for the selected generation.
+        
+        Args:
+            generation: Generation object with usage data
+        """
+        if not generation:
+            return
+            
+        # Clear any existing usage text
+        self.canvas.delete("usage_stats")
+        
+        # Format usage information
+        stats_text = "Usage Statistics:\n"
+        
+        # Add token usage
+        if generation.token_usage:
+            stats_text += f"Tokens: {generation.token_usage}\n"
+        
+        # Add parameters
+        if generation.parameters:
+            params = generation.parameters
+            if "size" in params:
+                stats_text += f"Size: {params['size']}\n"
+            if "quality" in params:
+                stats_text += f"Quality: {params['quality']}\n"
+            if "style" in params:
+                stats_text += f"Style: {params['style']}\n"
+        
+        # Add usage text to canvas
+        self.canvas.create_text(
+            10, 10,  # Position in top-left corner
+            text=stats_text,
+            fill="black",
+            font=("Arial", 9),
+            anchor="nw",
+            tags="usage_stats"
+        )
+        
+        logger.debug(f"Displayed usage statistics for generation {generation.id}")
 
     def _set_image(self, image):
         """Set the image to be displayed in the canvas."""

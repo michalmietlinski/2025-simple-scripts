@@ -9,6 +9,7 @@ from datetime import datetime
 
 from ...core.database import DatabaseManager
 from ...utils.error_handler import handle_errors, ValidationError
+from .variable_management_dialog import VariableManagementDialog
 
 logger = logging.getLogger(__name__)
 
@@ -80,29 +81,43 @@ class TemplateDialog(tk.Toplevel):
         controls_frame = ttk.Frame(list_frame)
         controls_frame.pack(fill="x", pady=(0, 5))
         
+        # Left side buttons
+        left_buttons = ttk.Frame(controls_frame)
+        left_buttons.pack(side="left", fill="x", expand=True)
+        
         ttk.Button(
-            controls_frame,
+            left_buttons,
             text="New Template",
             command=self._new_template
-        ).pack(side="left", padx=5)
+        ).grid(row=0, column=0, padx=2, pady=2)
         
         ttk.Button(
-            controls_frame,
-            text="Delete",
-            command=self._delete_template
-        ).pack(side="left", padx=5)
-        
-        ttk.Button(
-            controls_frame,
+            left_buttons,
             text="Clone",
             command=self._clone_template
-        ).pack(side="left", padx=5)
+        ).grid(row=0, column=1, padx=2, pady=2)
         
         ttk.Button(
-            controls_frame,
+            left_buttons,
+            text="Delete",
+            command=self._delete_template
+        ).grid(row=0, column=2, padx=2, pady=2)
+        
+        # Right side buttons
+        right_buttons = ttk.Frame(controls_frame)
+        right_buttons.pack(side="right", fill="x")
+        
+        ttk.Button(
+            right_buttons,
+            text="Manage Variables",
+            command=self._show_variable_manager
+        ).grid(row=0, column=0, padx=2, pady=2)
+        
+        ttk.Button(
+            right_buttons,
             text="Refresh",
             command=self._load_templates
-        ).pack(side="right", padx=5)
+        ).grid(row=0, column=1, padx=2, pady=2)
         
         # Template listbox with scrollbar
         list_container = ttk.Frame(list_frame)
@@ -286,9 +301,9 @@ class TemplateDialog(tk.Toplevel):
             
             # Find variable in database
             for var in self.variables:
-                if var["name"] == var_name:
+                if var.name == var_name:
                     # Add values to listbox
-                    for value in var["values"]:
+                    for value in var.values:
                         self.values_listbox.insert(tk.END, value)
                     break
             
@@ -498,4 +513,19 @@ class TemplateDialog(tk.Toplevel):
             messagebox.showerror(
                 "Error",
                 "Failed to clone template."
-            ) 
+            )
+
+    def _show_variable_manager(self):
+        """Show the variable management dialog."""
+        dialog = VariableManagementDialog(
+            self,
+            self.db_manager,
+            self.error_handler,
+            self._on_variables_updated
+        )
+        dialog.focus()
+    
+    def _on_variables_updated(self):
+        """Handle variable updates."""
+        self._load_variables()
+        self._update_variables() 

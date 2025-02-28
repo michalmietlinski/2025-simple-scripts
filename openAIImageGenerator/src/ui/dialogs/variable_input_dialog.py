@@ -6,6 +6,7 @@ import logging
 from typing import Dict, List, Any, Optional, Callable
 
 from ...utils.error_handler import handle_errors, ValidationError
+from .variable_management_dialog import VariableManagementDialog
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class VariableInputDialog(tk.Toplevel):
         template_text: str,
         variables: List[str],
         db_manager: Any,
-        on_submit: Callable[[str], None],
+        on_submit: Callable[[List[str]], None],  # Changed to accept list of processed texts
         error_handler: Any = None
     ):
         """Initialize variable input dialog.
@@ -28,7 +29,7 @@ class VariableInputDialog(tk.Toplevel):
             template_text: Template text
             variables: List of variable names
             db_manager: Database manager instance
-            on_submit: Callback for submitting processed template
+            on_submit: Callback for submitting processed templates
             error_handler: Error handler instance
         """
         super().__init__(parent)
@@ -38,23 +39,26 @@ class VariableInputDialog(tk.Toplevel):
         self.on_submit = on_submit
         self.error_handler = error_handler
         
+        # Initialize UI elements
+        self.variable_entries = {}  # Will store {var_name: listbox}
+        
         # Configure window
         self.title("Template Variables")
-        self.geometry("500x400")
-        self.minsize(400, 300)
+        self.geometry("600x500")  # Increased size
+        self.minsize(500, 400)  # Increased minimum size
         self.transient(parent)
         self.grab_set()
         
         # Center on parent
         self.geometry("+%d+%d" % (
-            parent.winfo_rootx() + parent.winfo_width()//2 - 250,
-            parent.winfo_rooty() + parent.winfo_height()//2 - 200
+            parent.winfo_rootx() + parent.winfo_width()//2 - 300,
+            parent.winfo_rooty() + parent.winfo_height()//2 - 250
         ))
         
         # Initialize variables
-        self.variable_entries = {}
         self.variable_values = {}
         self.variable_data = {}
+        self.selected_values = {}  # Store selected values for each variable
         
         self._create_ui()
         self._load_variable_data()
@@ -62,82 +66,21 @@ class VariableInputDialog(tk.Toplevel):
     
     def _create_ui(self):
         """Create dialog UI components."""
-        # Main container
-        main_frame = ttk.Frame(self, padding="10")
-        main_frame.pack(fill="both", expand=True)
+        # Main container with proper structure
+        main_frame = ttk.Frame(self)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Template preview
-        preview_frame = ttk.LabelFrame(
-            main_frame,
-            text="Template Preview",
-            padding="5"
-        )
-        preview_frame.pack(fill="x", pady=(0, 10))
+        # Content frame for everything except buttons
+        content_frame = ttk.Frame(main_frame)
+        content_frame.pack(fill="both", expand=True)
         
-        preview_text = tk.Text(
-            preview_frame,
-            height=5,
-            wrap="word",
-            font=("Arial", 10)
-        )
-        preview_text.pack(fill="x")
-        preview_text.insert("1.0", self.template_text)
-        preview_text.config(state="disabled")
-        
-        # Variables section
-        variables_frame = ttk.LabelFrame(
-            main_frame,
-            text="Variable Values",
-            padding="5"
-        )
-        variables_frame.pack(fill="both", expand=True)
-        
-        # Create scrollable frame for variables
-        canvas = tk.Canvas(variables_frame)
-        scrollbar = ttk.Scrollbar(variables_frame, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Create entry fields for each variable
-        for var_name in self.variables:
-            var_frame = ttk.Frame(scrollable_frame)
-            var_frame.pack(fill="x", pady=5)
-            
-            ttk.Label(
-                var_frame,
-                text=f"{var_name}:",
-                width=15
-            ).pack(side="left")
-            
-            # Create variable with default value
-            self.variable_values[var_name] = tk.StringVar(value="")
-            
-            # Create combobox for variable
-            combo = ttk.Combobox(
-                var_frame,
-                textvariable=self.variable_values[var_name]
-            )
-            combo.pack(side="left", fill="x", expand=True)
-            
-            # Add right-click context menu for paste
-            self._add_context_menu(combo)
-            
-            # Store reference to entry
-            self.variable_entries[var_name] = combo
+        # Bottom section for options and buttons - pack this FIRST
+        bottom_frame = ttk.Frame(main_frame)
+        bottom_frame.pack(side="bottom", fill="x", pady=(10, 0))
         
         # Random values option
-        random_frame = ttk.Frame(main_frame)
-        random_frame.pack(fill="x", pady=(10, 0))
+        random_frame = ttk.Frame(bottom_frame)
+        random_frame.pack(fill="x", pady=(0, 10))
         
         self.use_random_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
@@ -147,21 +90,143 @@ class VariableInputDialog(tk.Toplevel):
         ).pack(side="left")
         
         # Action buttons
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(fill="x", pady=(10, 0))
+        button_frame = ttk.Frame(bottom_frame)
+        button_frame.pack(fill="x")
         
+        # Left side buttons
+        left_buttons = ttk.Frame(button_frame)
+        left_buttons.pack(side="left")
+
         ttk.Button(
-            button_frame,
-            text="Submit",
-            command=self._process_template,
-            style="Primary.TButton"
-        ).pack(side="right", padx=(5, 0))
-        
+            left_buttons,
+            text="Manage Variables",
+            command=self._show_variable_manager
+        ).pack(side="left", padx=5)
+
+        # Right side buttons
+        right_buttons = ttk.Frame(button_frame)
+        right_buttons.pack(side="right")
+
         ttk.Button(
-            button_frame,
+            right_buttons,
             text="Cancel",
             command=self.destroy
-        ).pack(side="right")
+        ).pack(side="right", padx=5)
+
+        ttk.Button(
+            right_buttons,
+            text="Generate Selected",
+            command=self._process_template_selected,
+            style="Primary.TButton"
+        ).pack(side="right", padx=5)
+
+        ttk.Button(
+            right_buttons,
+            text="Generate All",
+            command=self._process_template_combinations
+        ).pack(side="right", padx=5)
+        
+        # Top section for template preview
+        preview_frame = ttk.LabelFrame(
+            content_frame,
+            text="Template Preview",
+            padding="5"
+        )
+        preview_frame.pack(fill="x", pady=(0, 10))
+        
+        preview_text = tk.Text(
+            preview_frame,
+            height=4,
+            wrap="word",
+            font=("Arial", 10)
+        )
+        preview_text.pack(fill="x")
+        preview_text.insert("1.0", self.template_text)
+        preview_text.config(state="disabled")
+        
+        # Variables section header
+        ttk.Label(
+            content_frame,
+            text="Variable Values",
+            font=("Arial", 10, "bold")
+        ).pack(anchor="w", pady=(0, 5))
+        
+        # Variables section with fixed height
+        variables_frame = ttk.LabelFrame(
+            content_frame,
+            padding="5"
+        )
+        variables_frame.pack(fill="both")
+        
+        # Create scrollable canvas for variables
+        canvas = tk.Canvas(variables_frame, height=250)  # Fixed height
+        scrollbar = ttk.Scrollbar(variables_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=canvas.winfo_width())
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Pack canvas and scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Bind canvas resize to update scrollable frame width
+        def _on_canvas_configure(e):
+            canvas.itemconfig(canvas.find_withtag("all")[0], width=e.width)
+        canvas.bind("<Configure>", _on_canvas_configure)
+        
+        # Create variable entries
+        for var_name in self.variables:
+            var_frame = ttk.LabelFrame(
+                scrollable_frame,
+                text=var_name,
+                padding="5"
+            )
+            var_frame.pack(fill="x", pady=2, padx=5)
+            
+            # Selection helper buttons
+            select_frame = ttk.Frame(var_frame)
+            select_frame.pack(fill="x", pady=(0, 5))
+            
+            ttk.Button(
+                select_frame,
+                text="Select All",
+                command=lambda name=var_name: self._select_all_values(name),
+                width=10
+            ).pack(side="left", padx=2)
+            
+            ttk.Button(
+                select_frame,
+                text="Clear",
+                command=lambda name=var_name: self._clear_selection(name),
+                width=8
+            ).pack(side="left", padx=2)
+            
+            # Create listbox for values
+            listbox = tk.Listbox(
+                var_frame,
+                selectmode="multiple",
+                height=4
+            )
+            listbox.pack(fill="x", expand=True)
+            
+            # Add scrollbar for listbox
+            listbox_scrollbar = ttk.Scrollbar(var_frame, orient="vertical", command=listbox.yview)
+            listbox_scrollbar.pack(side="right", fill="y")
+            listbox.configure(yscrollcommand=listbox_scrollbar.set)
+            
+            # Store listbox reference
+            self.variable_entries[var_name] = listbox
+        
+        # Configure canvas scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
     
     def _add_context_menu(self, widget):
         """Add right-click context menu to widget.
@@ -220,64 +285,71 @@ class VariableInputDialog(tk.Toplevel):
             
             # Store variable data
             for var in variables:
-                self.variable_data[var["name"]] = var
+                self.variable_data[var.name] = var
             
-            # Update comboboxes
-            for var_name, combo in self.variable_entries.items():
+            # Update listboxes with values
+            for var_name in self.variables:
                 if var_name in self.variable_data:
-                    combo["values"] = self.variable_data[var_name]["values"]
+                    listbox = self.variable_entries[var_name]
+                    
+                    # Clear existing items
+                    listbox.delete(0, tk.END)
+                    
+                    # Add new values
+                    for value in self.variable_data[var_name].values:
+                        listbox.insert(tk.END, value)
             
             logger.debug("Variable data loaded")
             
         except Exception as e:
             logger.error(f"Failed to load variable data: {str(e)}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to load variable data: {str(e)}"
+            )
     
     @handle_errors()
-    def _process_template(self):
-        """Process template with variable values."""
+    def _process_template_selected(self):
+        """Process template with selected variable values."""
         try:
-            # Get variable values
-            values = {}
-            missing_variables = []
-            
-            for var_name, var in self.variable_values.items():
-                value = var.get().strip()
-                if value:
-                    values[var_name] = value
+            # Get selected values for each variable
+            values_combinations = []
+            for var_name in self.variables:
+                listbox = self.variable_entries[var_name]
+                selected_indices = listbox.curselection()
+                selected_values = [listbox.get(i) for i in selected_indices]
+                
+                if not selected_values:
+                    # If nothing selected, use empty string
+                    values_combinations.append((var_name, [""]))
                 else:
-                    missing_variables.append(var_name)
+                    values_combinations.append((var_name, selected_values))
             
-            # Check if any variables are missing and random values are not enabled
-            if missing_variables and not self.use_random_var.get():
-                missing_vars_str = ", ".join(missing_variables)
-                if not messagebox.askyesno(
-                    "Missing Variables",
-                    f"The following variables have no values: {missing_vars_str}\n\n"
-                    "Do you want to continue with empty values?"
-                ):
-                    return
+            # Generate all combinations of selected values
+            from itertools import product
+            value_lists = [values for _, values in values_combinations]
+            var_names = [name for name, _ in values_combinations]
             
-            # Import here to avoid circular imports
+            all_combinations = []
+            for combination in product(*value_lists):
+                values_dict = dict(zip(var_names, combination))
+                all_combinations.append(values_dict)
+            
+            # Process each combination
+            processed_texts = []
             from ...utils.template_utils import TemplateProcessor
-            
-            # Process template
             processor = TemplateProcessor(self.db_manager)
-            processed_text = processor.substitute_variables(
-                self.template_text,
-                values,
-                self.use_random_var.get()
-            )
             
-            # Validate that all variables were substituted
-            if "{{" in processed_text and "}}" in processed_text:
-                if not messagebox.askyesno(
-                    "Unresolved Variables",
-                    "Some variables could not be resolved. Do you want to continue anyway?"
-                ):
-                    return
+            for values in all_combinations:
+                processed_text = processor.substitute_variables(
+                    self.template_text,
+                    values,
+                    self.use_random_var.get()
+                )
+                processed_texts.append(processed_text)
             
-            # Call callback
-            self.on_submit(processed_text)
+            # Call callback with all processed texts
+            self.on_submit(processed_texts)
             self.destroy()
             
         except Exception as e:
@@ -285,4 +357,77 @@ class VariableInputDialog(tk.Toplevel):
             messagebox.showerror(
                 "Error",
                 "Failed to process template."
-            ) 
+            )
+    
+    @handle_errors()
+    def _process_template_combinations(self):
+        """Process template with all possible combinations."""
+        try:
+            from ...utils.template_utils import TemplateProcessor
+            processor = TemplateProcessor(self.db_manager)
+            
+            # Get all combinations
+            combinations = processor.create_variable_combinations(
+                self.variables,
+                limit=10  # Limit to 10 combinations to avoid too many generations
+            )
+            
+            # Process each combination
+            processed_texts = []
+            for values in combinations:
+                processed_text = processor.substitute_variables(
+                    self.template_text,
+                    values,
+                    self.use_random_var.get()
+                )
+                processed_texts.append(processed_text)
+            
+            # Call callback with all processed texts
+            self.on_submit(processed_texts)
+            self.destroy()
+            
+        except Exception as e:
+            logger.error(f"Failed to process template combinations: {str(e)}")
+            messagebox.showerror(
+                "Error",
+                "Failed to process template combinations."
+            )
+    
+    def _show_variable_manager(self):
+        """Show the variable management dialog."""
+        dialog = VariableManagementDialog(
+            self,
+            self.db_manager,
+            self.error_handler,
+            self._on_variables_updated
+        )
+        dialog.focus()
+    
+    def _on_variables_updated(self):
+        """Handle variable updates."""
+        self._load_variable_data()
+        # Refresh only the variable entries
+        for var_name in self.variables:
+            for widget in self.winfo_children()[0].winfo_children():
+                if isinstance(widget, ttk.LabelFrame) and widget.cget("text") == var_name:
+                    # Get the listbox
+                    listbox = widget.winfo_children()[-1]
+                    
+                    # Clear existing items
+                    listbox.delete(0, tk.END)
+                    
+                    # Add new values
+                    for value in self.variable_data[var_name].values:
+                        listbox.insert(tk.END, value)
+    
+    def _select_all_values(self, var_name):
+        """Select all values for a variable."""
+        if var_name in self.variable_entries:
+            listbox = self.variable_entries[var_name]
+            listbox.select_set(0, tk.END)
+    
+    def _clear_selection(self, var_name):
+        """Clear all selections for a variable."""
+        if var_name in self.variable_entries:
+            listbox = self.variable_entries[var_name]
+            listbox.selection_clear(0, tk.END)

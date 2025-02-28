@@ -38,6 +38,7 @@ class GenerationTab(ttk.Frame):
         
         # Initialize variables
         self.preview_image: Optional[ImageTk.PhotoImage] = None
+        self.current_usage_info: Optional[Dict[str, Any]] = None
         self.prompt_var = tk.StringVar()
         self.size_var = tk.StringVar(value="1024x1024")
         self.quality_var = tk.StringVar(value="standard")
@@ -338,8 +339,14 @@ class GenerationTab(ttk.Frame):
             if isinstance(child, (ttk.Button, ttk.OptionMenu)):
                 child.config(state=state)
     
-    def set_preview_image(self, image_path: str = None, image: Image.Image = None):
-        """Set the preview image from a file path or PIL Image."""
+    def set_preview_image(self, image_path: str = None, image: Image.Image = None, usage_info: Dict[str, Any] = None):
+        """Set the preview image from a file path or PIL Image.
+        
+        Args:
+            image_path: Path to image file
+            image: PIL Image object
+            usage_info: Dictionary containing usage statistics
+        """
         if image_path and os.path.exists(image_path):
             self.current_image = Image.open(image_path)
             self.current_image_path = image_path
@@ -350,6 +357,9 @@ class GenerationTab(ttk.Frame):
             self._set_placeholder_preview()
             return
             
+        # Store usage info
+        self.current_usage_info = usage_info
+        
         # Reset zoom level
         self.zoom_level = 1.0
         
@@ -362,6 +372,10 @@ class GenerationTab(ttk.Frame):
         
         # Enable controls
         self._set_controls_state("normal")
+        
+        # Display usage statistics if available
+        if usage_info:
+            self._display_usage_statistics()
     
     @handle_errors()
     def _show_templates(self):
@@ -450,14 +464,25 @@ class GenerationTab(ttk.Frame):
         )
         dialog.focus()
     
-    def _set_processed_template(self, processed_text: str):
+    def _set_processed_template(self, processed_texts: List[str]):
         """Set processed template as prompt.
         
         Args:
-            processed_text: Processed template text
+            processed_texts: List of processed template texts
         """
+        # Join multiple texts with newlines
+        combined_text = "\n---\n".join(processed_texts)
         self.prompt_text.delete("1.0", tk.END)
-        self.prompt_text.insert("1.0", processed_text)
+        self.prompt_text.insert("1.0", combined_text)
+        
+        # Trigger generation for each prompt
+        for prompt in processed_texts:
+            settings = {
+                "size": self.size_var.get(),
+                "quality": self.quality_var.get(),
+                "style": self.style_var.get()
+            }
+            self.on_generate(prompt, settings)
     
     def _zoom_in(self):
         """Zoom in on the image."""
@@ -575,36 +600,65 @@ class GenerationTab(ttk.Frame):
                 f"Failed to copy to clipboard: {str(e)}"
             )
     
-    def _update_image(self):
-        """Update the displayed image based on current zoom level."""
-        if not hasattr(self, 'current_image') or self.current_image is None:
+    def _display_usage_statistics(self):
+        """Display usage statistics for the current image."""
+        if not self.current_usage_info:
             return
-            
-        # Clear canvas
-        self.canvas.delete("all")
         
-        # Calculate new size based on zoom
-        width = int(self.current_image.width * self.zoom_level)
-        height = int(self.current_image.height * self.zoom_level)
+        # Clear any existing usage text
+        self.canvas.delete("usage_stats")
+        
+        # Format usage information
+        stats_text = "Usage Statistics:\n"
+        
+        if "model" in self.current_usage_info:
+            stats_text += f"Model: {self.current_usage_info['model']}\n"
+        
+        if "estimated_tokens" in self.current_usage_info:
+            stats_text += f"Tokens: {self.current_usage_info['estimated_tokens']}\n"
+        
+        if "size" in self.current_usage_info:
+            stats_text += f"Size: {self.current_usage_info['size']}\n"
+        
+        # Add usage text to canvas
+        self.canvas.create_text(
+            10, 10,  # Position in top-left corner
+            text=stats_text,
+            fill="black",
+            font=("Arial", 9),
+            anchor="nw",
+            tags="usage_stats"
+        )
+        
+        logger.debug(f"Displayed usage statistics: {self.current_usage_info}")
+    
+    def _update_image(self):
+        """Update the displayed image based on zoom level."""
+        if not self.current_image:
+            return
+        
+        # Calculate new dimensions
+        width, height = self.current_image.size
+        new_width = int(width * self.zoom_level)
+        new_height = int(height * self.zoom_level)
         
         # Resize image
-        if self.zoom_level == 1.0:
-            display_image = self.current_image.copy()
-        else:
-            display_image = self.current_image.resize((width, height), Image.Resampling.LANCZOS)
+        resized = self.current_image.resize((new_width, new_height), Image.LANCZOS)
+        self.preview_image = ImageTk.PhotoImage(resized)
         
-        # Convert to PhotoImage and store reference
-        self.preview_image = ImageTk.PhotoImage(display_image)
-        
-        # Add image to canvas
+        # Clear canvas and display image
+        self.canvas.delete("all")
         self.canvas_image_id = self.canvas.create_image(
             0, 0,
             anchor="nw",
-            image=self.preview_image,
-            tags="image"
+            image=self.preview_image
         )
         
-        # Update canvas scroll region
-        self.canvas.config(scrollregion=self.canvas.bbox("all"))
+        # Configure canvas scroll region
+        self.canvas.config(scrollregion=(0, 0, new_width, new_height))
+        
+        # Display usage statistics if available
+        if self.current_usage_info:
+            self._display_usage_statistics()
         
         logger.debug(f"Image updated with zoom level: {self.zoom_level:.2f}")

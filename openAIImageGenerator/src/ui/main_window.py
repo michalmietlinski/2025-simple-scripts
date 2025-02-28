@@ -241,7 +241,7 @@ class MainWindow:
             settings: Generation settings
         """
         try:
-            self.set_status("Generating image...")
+            self.set_status(f"Generating image for prompt: {prompt[:50]}...")
             
             # Generate image
             images, usage_info = self.openai_client.generate_image(
@@ -286,15 +286,15 @@ class MainWindow:
             )
             
             # Update preview
-            self.generation_tab.set_preview_image(images[0])
+            self.generation_tab.set_preview_image(image=images[0], usage_info=usage_info)
             
             # Refresh history
             self.history_tab._load_history()
             
-            self.set_status("Image generated successfully")
+            self.set_status(f"Image generated successfully for prompt: {prompt[:50]}")
             
         except Exception as e:
-            self.set_status("Generation failed")
+            self.set_status(f"Generation failed for prompt: {prompt[:50]}")
             raise
     
     @handle_errors()

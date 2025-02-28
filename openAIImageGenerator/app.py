@@ -54,24 +54,26 @@ class DALLEGeneratorApp:
         
         # Initialize file manager
         self.file_manager = FileManager()
-        
         # Initialize OpenAI client
         self.openai_client = OpenAIClient()
         
         # Initialize usage tracker
         self.usage_tracker = UsageTracker()
         
-        # Add default template variables
-        self.add_default_template_variables()
+        # Initialize variables for dropdowns
+        self.model_var = tk.StringVar(value="dall-e-3")
+        self.size_var = tk.StringVar(value="1024x1024")
+        self.quality_var = tk.StringVar(value="standard")
+        self.style_var = tk.StringVar(value="vivid")
         
-        # Set up UI
+        # Initialize current image
+        self.current_image = None
+        
+        # Initialize UI
         self.setup_ui()
         
-        # Set up image generation UI if API key is available
-        if self.api_key:
-            self.setup_image_generation_ui()
-        else:
-            self.show_api_key_dialog()
+        # Add default template variables if they don't exist
+        self.add_default_template_variables()
     
     def add_default_template_variables(self):
         """Add default template variables to the database if they don't exist."""
@@ -112,13 +114,12 @@ class DALLEGeneratorApp:
         pass
     
     def setup_ui(self):
-        # Placeholder for UI setup
-        main_label = tk.Label(self.root, text="DALL-E Image Generator", font=("Arial", 24))
-        main_label.pack(pady=20)
+        """Set up the UI."""
+        # Main title
+        tk.Label(self.root, text="DALL-E Image Generator", font=("Arial", 16, "bold")).pack(pady=10)
         
         # API key status
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if api_key:
+        if self.api_key:
             status_label = tk.Label(self.root, text="API Key: ✓ Connected", fg="green", font=("Arial", 10))
         else:
             status_label = tk.Label(self.root, text="API Key: ✗ Not Found", fg="red", font=("Arial", 10))
@@ -145,6 +146,9 @@ class DALLEGeneratorApp:
         
         # Setup history UI in the history tab
         self.setup_history_ui()
+        
+        # Force UI update to ensure everything is rendered properly
+        self.root.update_idletasks()
     
     def show_api_key_dialog(self):
         dialog = tk.Toplevel(self.root)
@@ -212,37 +216,121 @@ class DALLEGeneratorApp:
 
     def setup_image_generation_ui(self):
         """Set up the image generation UI."""
-        # Create a frame for the image generation tab
-        generation_frame = ttk.Frame(self.notebook)
-        self.notebook.add(generation_frame, text="Generate Image")
-        
-        # Initialize variables
-        self.model_var = tk.StringVar(value="dall-e-3")
-        self.size_var = tk.StringVar(value="1024x1024")
-        self.quality_var = tk.StringVar(value="standard")
-        self.style_var = tk.StringVar(value="vivid")
-        self.n_var = tk.IntVar(value=1)
-        
-        # Initialize clients
-        self.openai_client = None
-        self.file_manager = None
-        self.usage_tracker = None
-        self.db_manager = None
-        self.current_image = None
-        
-        # Initialize clients if API key is available
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if api_key:
-            try:
-                self.openai_client = OpenAIClient()
-                self.file_manager = FileManager()
-                self.usage_tracker = UsageTracker()
-                self.db_manager = DatabaseManager()
-                # Update UI based on model capabilities
-                self.update_ui_for_model()
-            except Exception as e:
-                logger.error(f"Failed to initialize clients: {str(e)}")
+        # Use the existing tab frame
+        generation_frame = self.generation_tab
 
+        # Initialize StringVar variables for dropdowns if they don't exist
+        if not hasattr(self, 'model_var'):
+            self.model_var = tk.StringVar(value="dall-e-3")
+        if not hasattr(self, 'size_var'):
+            self.size_var = tk.StringVar(value="1024x1024")
+        if not hasattr(self, 'quality_var'):
+            self.quality_var = tk.StringVar(value="standard")
+        if not hasattr(self, 'style_var'):
+            self.style_var = tk.StringVar(value="vivid")
+
+        # Create left panel for controls
+        left_panel = ttk.Frame(generation_frame, padding=10)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+
+        # Create right panel for image preview
+        right_panel = ttk.Frame(generation_frame, padding=10)
+        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        # Prompt input
+        ttk.Label(left_panel, text="Prompt:", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(0, 5))
+        self.prompt_text = tk.Text(left_panel, width=40, height=10, wrap=tk.WORD)
+        self.prompt_text.pack(fill=tk.X, pady=(0, 10))
+        
+        # Model selection
+        ttk.Label(left_panel, text="Model:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        model_frame = ttk.Frame(left_panel)
+        model_frame.pack(fill=tk.X, pady=(0, 10))
+        self.model_dropdown = self.create_styled_dropdown(
+            model_frame, self.model_var, ["dall-e-3", "dall-e-2"], width=15
+        )
+        self.model_dropdown.pack(side=tk.LEFT)
+        
+        # Size selection
+        ttk.Label(left_panel, text="Size:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        size_frame = ttk.Frame(left_panel)
+        size_frame.pack(fill=tk.X, pady=(0, 10))
+        self.size_dropdown = self.create_styled_dropdown(
+            size_frame, self.size_var, ["1024x1024", "1024x1792", "1792x1024"], width=15
+        )
+        self.size_dropdown.pack(side=tk.LEFT)
+        
+        # Quality selection
+        ttk.Label(left_panel, text="Quality:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        quality_frame = ttk.Frame(left_panel)
+        quality_frame.pack(fill=tk.X, pady=(0, 10))
+        self.quality_dropdown = self.create_styled_dropdown(
+            quality_frame, self.quality_var, ["standard", "hd"], width=15
+        )
+        self.quality_dropdown.pack(side=tk.LEFT)
+        
+        # Style selection
+        ttk.Label(left_panel, text="Style:", font=("Arial", 10, "bold")).pack(anchor=tk.W)
+        style_frame = ttk.Frame(left_panel)
+        style_frame.pack(fill=tk.X, pady=(0, 10))
+        self.style_dropdown = self.create_styled_dropdown(
+            style_frame, self.style_var, ["vivid", "natural"], width=15
+        )
+        self.style_dropdown.pack(side=tk.LEFT)
+        
+        # Generate button
+        self.generate_btn = self.create_styled_button(
+            left_panel, 
+            text="Generate Image", 
+            command=self.generate_image,
+            bg_color="#4CAF50",
+            fg_color="white",
+            font=("Arial", 12, "bold"),
+            padx=20,
+            pady=10
+        )
+        self.generate_btn.pack(pady=20)
+        
+        # Image preview area
+        ttk.Label(right_panel, text="Image Preview:", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(0, 10))
+        self.preview_frame = ttk.Frame(right_panel, borderwidth=1, relief=tk.SOLID)
+        self.preview_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Preview placeholder
+        self.preview_label = ttk.Label(self.preview_frame, text="Generated image will appear here")
+        self.preview_label.pack(fill=tk.BOTH, expand=True)
+        
+        # Buttons for image actions
+        button_frame = ttk.Frame(right_panel)
+        button_frame.pack(fill=tk.X, pady=10)
+        
+        self.view_btn = self.create_styled_button(
+            button_frame, 
+            text="View Full Resolution", 
+            command=self.view_original_resolution,
+            bg_color="#2196F3",
+            fg_color="white"
+        )
+        self.view_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.save_btn = self.create_styled_button(
+            button_frame, 
+            text="Save Image", 
+            command=self.save_image,
+            bg_color="#4CAF50",
+            fg_color="white"
+        )
+        self.save_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.open_dir_btn = self.create_styled_button(
+            button_frame, 
+            text="Open Output Folder", 
+            command=self.open_output_directory,
+            bg_color="#9e9e9e",
+            fg_color="white"
+        )
+        self.open_dir_btn.pack(side=tk.LEFT, padx=5)
+    
     def update_ui_for_model(self):
         """Update UI elements based on the detected model capabilities."""
         if not self.openai_client:
@@ -710,23 +798,35 @@ class DALLEGeneratorApp:
 
     def setup_history_ui(self):
         """Set up the history UI."""
-        # Create a frame for history
-        history_frame = ttk.LabelFrame(self.notebook, text="History")
-        self.notebook.add(history_frame, text="History")
-        
+        # Use the existing history tab frame
+        history_frame = self.history_tab
+
         # Create tabs for history and templates
-        history_tabs = ttk.Notebook(history_frame)
-        history_tabs.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        
-        # History tab
-        history_tab = ttk.Frame(history_tabs)
-        history_tabs.add(history_tab, text="Generation History")
-        
-        # Set up history UI
-        self.setup_generation_history_ui(history_tab)
-        
-        # Set up template management UI in a separate tab in the main notebook
+        self.history_tabs = ttk.Notebook(history_frame)
+        self.history_tabs.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)        
+
+        # Generation history tab
+        generation_history_tab = ttk.Frame(self.history_tabs)
+        self.history_tabs.add(generation_history_tab, text="Generation History")
+
+        # Templates tab
+        self.templates_tab = ttk.Frame(self.history_tabs)
+        self.history_tabs.add(self.templates_tab, text="Templates")
+
+        # Set up generation history UI
+        self.setup_generation_history_ui(generation_history_tab)
+
+        # Set up template management UI
         self.setup_template_management_ui()
+        
+    def setup_template_management_ui(self):
+        """Set up the template management UI."""
+        # Use the existing templates tab
+        template_frame = self.templates_tab
+
+        # Split into left and right panes
+        template_panes = ttk.PanedWindow(template_frame, orient=tk.HORIZONTAL)    
+        template_panes.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
     
     def setup_prompt_history_ui(self, parent_frame):
         """Set up the prompt history UI components."""
@@ -782,6 +882,7 @@ class DALLEGeneratorApp:
         # Create a listbox with scrollbar
         scrollbar = tk.Scrollbar(list_frame)
         scrollbar.pack(side="right", fill="y")
+        
         
         self.prompt_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, font=("Arial", 10), height=15)
         self.prompt_listbox.pack(side="left", fill="both", expand=True)

@@ -3,10 +3,12 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import logging
-from typing import Callable, Dict, Any, Optional
+from typing import Callable, Dict, Any, Optional, List
 from PIL import Image, ImageTk
 
 from ...utils.error_handler import handle_errors, ValidationError
+from ..dialogs.template_dialog import TemplateDialog
+from ..dialogs.variable_input_dialog import VariableInputDialog
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,8 @@ class GenerationTab(ttk.Frame):
         self,
         parent: ttk.Notebook,
         on_generate: Callable[[str, Dict[str, Any]], None],
-        error_handler: Any
+        error_handler: Any,
+        db_manager: Any = None
     ):
         """Initialize generation tab.
         
@@ -25,10 +28,12 @@ class GenerationTab(ttk.Frame):
             parent: Parent notebook widget
             on_generate: Callback for generation requests
             error_handler: Error handler instance
+            db_manager: Database manager instance
         """
         super().__init__(parent)
         self.on_generate = on_generate
         self.error_handler = error_handler
+        self.db_manager = db_manager
         
         # Initialize variables
         self.preview_image: Optional[ImageTk.PhotoImage] = None
@@ -58,11 +63,30 @@ class GenerationTab(ttk.Frame):
         prompt_frame = ttk.Frame(controls_frame)
         prompt_frame.pack(fill="x", pady=5)
         
+        prompt_header = ttk.Frame(prompt_frame)
+        prompt_header.pack(fill="x")
+        
         ttk.Label(
-            prompt_frame,
+            prompt_header,
             text="Prompt:",
             font=("Arial", 10, "bold")
-        ).pack(anchor="w")
+        ).pack(side="left")
+        
+        # Template buttons
+        template_frame = ttk.Frame(prompt_header)
+        template_frame.pack(side="right")
+        
+        ttk.Button(
+            template_frame,
+            text="Templates",
+            command=self._show_templates
+        ).pack(side="left", padx=2)
+        
+        ttk.Button(
+            template_frame,
+            text="Save as Template",
+            command=self._save_as_template
+        ).pack(side="left", padx=2)
         
         self.prompt_text = tk.Text(
             prompt_frame,
@@ -228,4 +252,100 @@ class GenerationTab(ttk.Frame):
             image=self.preview_image,
             text=""  # Clear placeholder text
         )
-        logger.debug("Preview image updated") 
+        logger.debug("Preview image updated")
+    
+    @handle_errors()
+    def _show_templates(self):
+        """Show template management dialog."""
+        if not self.db_manager:
+            messagebox.showerror(
+                "Error",
+                "Database manager not available."
+            )
+            return
+        
+        dialog = TemplateDialog(
+            self.winfo_toplevel(),
+            self.db_manager,
+            self._use_template,
+            self.error_handler
+        )
+        dialog.focus()
+    
+    @handle_errors()
+    def _save_as_template(self):
+        """Save current prompt as template."""
+        if not self.db_manager:
+            messagebox.showerror(
+                "Error",
+                "Database manager not available."
+            )
+            return
+        
+        # Get current prompt
+        prompt_text = self.prompt_text.get("1.0", "end-1c").strip()
+        
+        if not prompt_text:
+            messagebox.showinfo(
+                "Info",
+                "Please enter a prompt to save as template."
+            )
+            return
+        
+        # Extract variables
+        from ...utils.template_utils import TemplateProcessor
+        processor = TemplateProcessor()
+        variables = processor.extract_variables(prompt_text)
+        
+        # Save template
+        try:
+            template_id = self.db_manager.add_template(prompt_text, variables)
+            
+            if template_id:
+                messagebox.showinfo(
+                    "Success",
+                    "Prompt saved as template successfully."
+                )
+            else:
+                raise ValidationError("Failed to save template")
+                
+        except Exception as e:
+            logger.error(f"Failed to save template: {str(e)}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to save template: {str(e)}"
+            )
+    
+    @handle_errors()
+    def _use_template(self, template_text: str, variables: List[str]):
+        """Use selected template.
+        
+        Args:
+            template_text: Template text
+            variables: List of variable names
+        """
+        if not variables:
+            # No variables, use template directly
+            self.prompt_text.delete("1.0", tk.END)
+            self.prompt_text.insert("1.0", template_text)
+            return
+        
+        # Show variable input dialog
+        dialog = VariableInputDialog(
+            self.winfo_toplevel(),
+            template_text,
+            variables,
+            self.db_manager,
+            self._set_processed_template,
+            self.error_handler
+        )
+        dialog.focus()
+    
+    def _set_processed_template(self, processed_text: str):
+        """Set processed template as prompt.
+        
+        Args:
+            processed_text: Processed template text
+        """
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", processed_text) 

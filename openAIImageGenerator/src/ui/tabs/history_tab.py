@@ -213,13 +213,30 @@ class HistoryTab(ttk.Frame):
             # Update tree
             self.tree.delete(*self.tree.get_children())
             for gen in generations:
+                # Parse the date string into a datetime object
+                try:
+                    date_obj = datetime.fromisoformat(gen.generation_date)
+                    date_str = date_obj.strftime("%Y-%m-%d %H:%M:%S")
+                except (ValueError, TypeError):
+                    date_str = gen.generation_date
+                
+                # Extract parameters
+                params = gen.parameters or {}
+                size = params.get("size", "")
+                quality = params.get("quality", "")
+                style = params.get("style", "")
+                
                 self.tree.insert(
                     "",
                     "end",
                     values=(
-                        gen.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                        date_str,
                         gen.prompt_text[:50] + "..." if len(gen.prompt_text) > 50 else gen.prompt_text,
-                        gen.rating or "Not rated"
+                        size,
+                        quality,
+                        style,
+                        gen.user_rating or "Not rated",
+                        gen.token_usage
                     ),
                     tags=(str(gen.id),)
                 )
@@ -230,11 +247,6 @@ class HistoryTab(ttk.Frame):
         except Exception as e:
             logger.error(f"Failed to load history: {str(e)}")
             raise DatabaseError("Failed to load generation history")
-    
-            messagebox.showerror(
-                "Error",
-                "Failed to load generation history."
-            )
     
     def _on_select(self, event):
         """Handle generation selection."""

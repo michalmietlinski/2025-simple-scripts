@@ -16,6 +16,7 @@ from .tabs.generation_tab import GenerationTab
 from .tabs.history_tab import HistoryTab
 from .dialogs.settings_dialog import SettingsDialog
 from .dialogs.error_viewer import ErrorReportViewer
+from .dialogs.template_dialog import TemplateDialog
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +129,7 @@ class MainWindow:
         menubar.add_cascade(label="Tools", menu=tools_menu)
         tools_menu.add_command(label="Verify API Key", command=self._verify_api_key)
         tools_menu.add_command(label="Clean Old Files", command=self._cleanup_files)
+        tools_menu.add_command(label="Manage Templates", command=self._show_template_manager)
         tools_menu.add_separator()
         tools_menu.add_command(label="View Error Reports", command=self._show_error_reports)
         
@@ -171,7 +173,8 @@ class MainWindow:
         self.generation_tab = GenerationTab(
             self.notebook,
             self._handle_generation,
-            error_handler=self.error_handler
+            error_handler=self.error_handler,
+            db_manager=self.db_manager
         )
         self.history_tab = HistoryTab(
             self.notebook,
@@ -313,6 +316,16 @@ class MainWindow:
             self.root,
             self.settings_manager.get_settings(),
             self._handle_settings_update,
+            error_handler=self.error_handler
+        )
+        dialog.focus()
+    
+    @handle_errors()
+    def _show_template_manager(self):
+        """Show template management dialog."""
+        dialog = TemplateDialog(
+            self.root,
+            self.db_manager,
             error_handler=self.error_handler
         )
         dialog.focus()

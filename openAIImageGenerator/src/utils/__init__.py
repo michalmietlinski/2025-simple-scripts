@@ -1,6 +1,27 @@
-"""Utility functions and configuration."""
+"""Utility modules for the OpenAI Image Generator."""
 
-from .config import Config
-from .logging import setup_logging
+from .settings_manager import SettingsManager
+from .error_handler import (
+    ErrorHandler, 
+    handle_errors, 
+    AppError, 
+    APIError, 
+    DatabaseError, 
+    FileError, 
+    ValidationError, 
+    ConfigError
+)
+from .template_utils import TemplateProcessor
 
-__all__ = ['Config', 'setup_logging'] 
+__all__ = [
+    'SettingsManager',
+    'ErrorHandler',
+    'handle_errors',
+    'AppError',
+    'APIError',
+    'DatabaseError',
+    'FileError',
+    'ValidationError',
+    'ConfigError',
+    'TemplateProcessor'
+] 

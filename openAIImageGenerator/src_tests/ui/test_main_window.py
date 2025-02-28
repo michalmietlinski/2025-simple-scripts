@@ -24,7 +24,8 @@ class TestMainWindow:
     def setup_method(self):
         """Set up test fixtures."""
         # Mock dependencies
-        self.root = MagicMock(spec=tk.Tk)
+        self.root = MagicMock()
+        self.root.tk = MagicMock()  # Add tk attribute to root mock
         self.openai_client = MagicMock(spec=OpenAIImageClient)
         self.db_manager = MagicMock(spec=DatabaseManager)
         self.file_manager = MagicMock(spec=FileManager)
@@ -40,15 +41,28 @@ class TestMainWindow:
             "page_size": 10
         }
         
-        # Create the main window with mocked dependencies
-        self.main_window = MainWindow(
-            self.root,
-            self.openai_client,
-            self.db_manager,
-            self.file_manager,
-            self.settings_manager,
-            self.error_handler
-        )
+        # Mock tkinter widgets and variables
+        with patch('src.ui.main_window.ttk.Notebook'), \
+             patch('src.ui.main_window.GenerationTab'), \
+             patch('src.ui.main_window.HistoryTab'), \
+             patch('src.ui.main_window.tk.Menu'), \
+             patch('src.ui.main_window.tk.StringVar'), \
+             patch('src.ui.main_window.threading.Thread'), \
+             patch('src.ui.main_window.messagebox'):
+            
+            # Create the main window with mocked dependencies
+            self.main_window = MainWindow(
+                self.root,
+                self.openai_client,
+                self.db_manager,
+                self.file_manager,
+                self.settings_manager,
+                self.error_handler
+            )
+            
+            # Mock status_label and api_status
+            self.main_window.status_label = MagicMock()
+            self.main_window.api_status = MagicMock()
     
     @patch('src.ui.main_window.ttk.Notebook')
     @patch('src.ui.main_window.GenerationTab')
@@ -74,11 +88,14 @@ class TestMainWindow:
         self.openai_client.validate_api_key.return_value = True
         
         # Act
-        result = self.main_window._verify_api_key()
+        self.main_window._verify_api_key()
         
         # Assert
-        assert result is True
         self.openai_client.validate_api_key.assert_called_once()
+        self.main_window.api_status.config.assert_called_once_with(
+            text="API: Connected ✓",
+            fg="green"
+        )
     
     def test_verify_api_key_invalid(self):
         """Test API key verification with an invalid key."""
@@ -86,11 +103,14 @@ class TestMainWindow:
         self.openai_client.validate_api_key.return_value = False
         
         # Act
-        result = self.main_window._verify_api_key()
+        self.main_window._verify_api_key()
         
         # Assert
-        assert result is False
         self.openai_client.validate_api_key.assert_called_once()
+        self.main_window.api_status.config.assert_called_once_with(
+            text="API: Invalid Key ✗",
+            fg="red"
+        )
     
     def test_cleanup_files(self):
         """Test file cleanup functionality."""
@@ -104,7 +124,7 @@ class TestMainWindow:
         self.main_window._cleanup_files()
         
         # Assert
-        self.file_manager.cleanup_old_files.assert_called_once_with(days=30)
+        self.file_manager.cleanup_old_files.assert_called_once_with(30)
     
     def test_show_settings(self):
         """Test showing settings dialog."""
@@ -128,7 +148,7 @@ class TestMainWindow:
         self.main_window.set_status(status_message)
         
         # Assert
-        self.main_window.status_var.set.assert_called_once_with(status_message)
+        self.main_window.status_label.config.assert_called_once_with(text=status_message)
 
 if __name__ == "__main__":
     pytest.main(["-xvs", __file__]) 

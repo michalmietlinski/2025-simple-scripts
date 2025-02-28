@@ -1,16 +1,16 @@
-# DALL-E Image Generator Dependencies
+# OpenAI Image Generator Dependencies
 
 # Core dependencies
-pillow>=9.0.0
 openai>=1.0.0
+Pillow>=10.0.0
 python-dotenv>=1.0.0
+tkinter
 
 # Utilities
 requests>=2.27.0
+python-dateutil>=2.8.2
 
 # Testing
 pytest>=7.0.0
-
-# Additional dependencies
-Pillow>=10.0.0
-python-dateutil>=2.8.2 
+pytest-mock>=3.10.0
+pytest-cov>=4.1.0 

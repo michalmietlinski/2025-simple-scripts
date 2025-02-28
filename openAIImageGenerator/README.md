@@ -89,6 +89,7 @@ openai-image-generator/
 ├── src/                    # Source code
 │   ├── core/               # Core components
 │   │   ├── database.py     # Database management
+│   │   ├── database_migration.py # Database schema migrations
 │   │   ├── data_models.py  # Data models
 │   │   ├── file_manager.py # File management
 │   │   └── openai_client.py # OpenAI API client
@@ -100,14 +101,19 @@ openai-image-generator/
 │   │   ├── error_handler.py # Error handling
 │   │   ├── settings_manager.py # Settings management
 │   │   ├── template_utils.py # Template processing
+│   │   ├── logging.py      # Logging configuration
+│   │   ├── config.py       # Configuration management
 │   │   └── usage_tracker.py # Usage tracking
 │   └── main.py             # Application entry point
 ├── src_tests/              # Tests
 │   ├── core/               # Core component tests
 │   ├── ui/                 # UI component tests
 │   └── utils/              # Utility module tests
-├── output/                 # Generated images
+├── docs/                   # Documentation
+├── newout/                 # Generated images (organized by date)
+├── data/                   # Application data
 ├── requirements.txt        # Dependencies
+├── setup.py                # Package setup
 └── README.md               # Documentation
 ```
 

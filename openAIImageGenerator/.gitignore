@@ -27,10 +27,12 @@ data/*.db
 output/
 outputs/
 data/
+newout/
 
 # Logs
 *.log
 app.log
+logs/
 
 # IDE specific files
 .idea/
@@ -41,3 +43,11 @@ app.log
 # OS specific files
 .DS_Store
 Thumbs.db 
+
+# Testing
+.pytest_cache/
+pytest_cache/
+
+# Backup and temporary files
+cleanup_backup/
+*_backup.*

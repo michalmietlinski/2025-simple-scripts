@@ -156,8 +156,9 @@ class TestOpenAIImageClient:
             
             # Assert
             assert len(images) == 1
+            assert metadata["revised_prompt"] == "A stunning sunset over mountains"
             self.mock_openai_instance.images.generate.assert_called_once()
-            mock_get.assert_called_once()
+            mock_get.assert_called_once_with("https://example.com/image.png")
             mock_image_open.assert_called_once()
 
 if __name__ == "__main__":

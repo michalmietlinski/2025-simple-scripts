@@ -88,6 +88,22 @@ class ErrorHandler:
                 extra={"error_context": report.context}
             )
             
+            # Show dialog if requested
+            if show_dialog:
+                # Import here to avoid circular imports
+                from ..ui.dialogs.error_dialog import ErrorDialog
+                
+                # Get root window
+                root = self._get_root_window()
+                if root:
+                    # Show error dialog
+                    ErrorDialog(
+                        root,
+                        error,
+                        self,
+                        title=f"Error: {report.error_type}"
+                    )
+            
             return report
             
         except Exception as e:
@@ -213,6 +229,20 @@ class ErrorHandler:
                     
         except Exception as e:
             logger.error(f"Failed to cleanup error reports: {str(e)}")
+
+    def _get_root_window(self):
+        """Get the root Tkinter window if available."""
+        try:
+            import tkinter as tk
+            
+            # Try to get existing root window
+            for widget in tk._default_root.winfo_children():
+                if widget.winfo_toplevel() == widget:
+                    return widget
+            
+            return tk._default_root
+        except (ImportError, AttributeError):
+            return None
 
 def handle_errors(show_dialog: bool = True):
     """Decorator for error handling.

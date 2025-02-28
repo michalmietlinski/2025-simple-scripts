@@ -7,6 +7,8 @@ from .dialogs.settings_dialog import SettingsDialog
 from .dialogs.error_viewer import ErrorReportViewer
 from .dialogs.template_dialog import TemplateDialog
 from .dialogs.variable_input_dialog import VariableInputDialog
+from .dialogs.usage_dialog import UsageDialog
+from .dialogs.error_dialog import ErrorDialog
 
 __all__ = [
     'MainWindow', 
@@ -15,5 +17,7 @@ __all__ = [
     'SettingsDialog',
     'ErrorReportViewer',
     'TemplateDialog',
-    'VariableInputDialog'
+    'VariableInputDialog',
+    'UsageDialog',
+    'ErrorDialog'
 ] 

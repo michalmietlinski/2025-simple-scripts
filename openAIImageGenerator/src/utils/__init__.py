@@ -12,6 +12,7 @@ from .error_handler import (
     ConfigError
 )
 from .template_utils import TemplateProcessor
+from .usage_tracker import UsageTracker
 
 __all__ = [
     'SettingsManager',
@@ -23,5 +24,6 @@ __all__ = [
     'FileError',
     'ValidationError',
     'ConfigError',
-    'TemplateProcessor'
+    'TemplateProcessor',
+    'UsageTracker'
 ] 

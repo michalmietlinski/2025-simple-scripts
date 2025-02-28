@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any, Union
 from pathlib import Path
 
+from ..utils.error_handler import DatabaseError
+
 from .data_models import (
     Prompt, 
     TemplateVariable, 
@@ -47,8 +49,14 @@ class DatabaseManager:
             self.cursor = self.conn.cursor()
             logger.info("Connected to database")
         except sqlite3.Error as e:
-            logger.error(f"Database connection error: {str(e)}")
-            raise
+            logger.error(f"Error connecting to database: {str(e)}")
+            raise DatabaseError("Failed to connect to database") from e
+    
+    def ensure_connection(self):
+        """Ensure database connection is open, reconnect if necessary."""
+        if self.conn is None or self.cursor is None:
+            logger.debug("Database connection not open, reconnecting...")
+            self.connect()
     
     def close(self):
         """Close database connection."""
@@ -364,6 +372,9 @@ class DatabaseManager:
             int: Total number of generations
         """
         try:
+            # Ensure connection is open
+            self.ensure_connection()
+            
             self.cursor.execute("SELECT COUNT(*) FROM generation_history")
             return self.cursor.fetchone()[0]
         except sqlite3.Error as e:
@@ -387,6 +398,9 @@ class DatabaseManager:
             List[Generation]: List of matching generations
         """
         try:
+            # Ensure connection is open
+            self.ensure_connection()
+            
             query = """
                 SELECT gh.*, ph.prompt_text
                 FROM generation_history gh
@@ -418,6 +432,9 @@ class DatabaseManager:
             Optional[Generation]: Generation if found, None otherwise
         """
         try:
+            # Ensure connection is open
+            self.ensure_connection()
+            
             self.cursor.execute(
                 """
                 SELECT gh.*, ph.prompt_text
@@ -614,6 +631,9 @@ class DatabaseManager:
             List[Dict[str, Any]]: List of template dictionaries
         """
         try:
+            # Ensure connection is open
+            self.ensure_connection()
+            
             query = """
                 SELECT p.id, p.prompt_text, p.template_variables, p.creation_date, p.favorite
                 FROM prompt_history p
@@ -715,6 +735,9 @@ class DatabaseManager:
             List[Dict[str, Any]]: List of template variable dictionaries
         """
         try:
+            # Ensure connection is open
+            self.ensure_connection()
+            
             self.cursor.execute("SELECT * FROM template_variables ORDER BY name")
             results = self.cursor.fetchall()
             
@@ -768,4 +791,115 @@ class DatabaseManager:
         except sqlite3.Error as e:
             logger.error(f"Error deleting template variable: {str(e)}")
             self.conn.rollback()
-            raise DatabaseError("Failed to delete template variable") from e 
+            raise DatabaseError("Failed to delete template variable") from e
+
+    def get_usage_stats(self, days: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get usage statistics for the specified number of days.
+        
+        Args:
+            days: Optional number of days to retrieve (None for all)
+            
+        Returns:
+            List of usage statistics
+        """
+        try:
+            self.ensure_connection()
+            cursor = self.conn.cursor()
+            
+            if days:
+                # Get stats for the last N days
+                query = """
+                SELECT * FROM usage_stats 
+                WHERE date >= date('now', ?) 
+                ORDER BY date
+                """
+                cursor.execute(query, (f'-{days} days',))
+            else:
+                # Get all stats
+                query = "SELECT * FROM usage_stats ORDER BY date"
+                cursor.execute(query)
+            
+            # Fetch results
+            columns = [col[0] for col in cursor.description]
+            results = []
+            
+            for row in cursor.fetchall():
+                results.append(dict(zip(columns, row)))
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Failed to get usage stats: {str(e)}")
+            raise DatabaseError("Failed to get usage statistics", {"error": str(e)})
+        finally:
+            self.close()
+    
+    def get_model_distribution(self) -> Dict[str, int]:
+        """Get distribution of generations by model.
+        
+        Returns:
+            Dictionary mapping model names to generation counts
+        """
+        try:
+            self.ensure_connection()
+            cursor = self.conn.cursor()
+            
+            # Get all generations with parameters
+            query = "SELECT parameters FROM generation_history"
+            cursor.execute(query)
+            
+            # Process results manually
+            result = {}
+            for row in cursor.fetchall():
+                try:
+                    params = json.loads(row[0])
+                    model = params.get('model')
+                    if model:
+                        result[model] = result.get(model, 0) + 1
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            
+            # Sort by count (descending)
+            result = dict(sorted(result.items(), key=lambda x: x[1], reverse=True))
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to get model distribution: {str(e)}")
+            raise DatabaseError("Failed to get model distribution", {"error": str(e)})
+        finally:
+            self.close()
+    
+    def get_size_distribution(self) -> Dict[str, int]:
+        """Get distribution of generations by image size.
+        
+        Returns:
+            Dictionary mapping image sizes to generation counts
+        """
+        try:
+            self.ensure_connection()
+            cursor = self.conn.cursor()
+            
+            # Get all generations with parameters
+            query = "SELECT parameters FROM generation_history"
+            cursor.execute(query)
+            
+            # Process results manually
+            result = {}
+            for row in cursor.fetchall():
+                try:
+                    params = json.loads(row[0])
+                    size = params.get('size')
+                    if size:
+                        result[size] = result.get(size, 0) + 1
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            
+            # Sort by count (descending)
+            result = dict(sorted(result.items(), key=lambda x: x[1], reverse=True))
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to get size distribution: {str(e)}")
+            raise DatabaseError("Failed to get size distribution", {"error": str(e)})
+        finally:
+            self.close() 

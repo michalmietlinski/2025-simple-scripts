@@ -5,6 +5,8 @@ from tkinter import ttk, messagebox
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any
+import threading
+import time
 
 from ..core.openai_client import OpenAIImageClient
 from ..core.database import DatabaseManager
@@ -12,11 +14,13 @@ from ..core.file_manager import FileManager
 from ..core.data_models import Generation, Prompt
 from ..utils.settings_manager import SettingsManager
 from ..utils.error_handler import ErrorHandler, handle_errors, APIError, FileError, DatabaseError
+from ..utils.usage_tracker import UsageTracker
 from .tabs.generation_tab import GenerationTab
 from .tabs.history_tab import HistoryTab
 from .dialogs.settings_dialog import SettingsDialog
 from .dialogs.error_viewer import ErrorReportViewer
 from .dialogs.template_dialog import TemplateDialog
+from .dialogs.usage_dialog import UsageDialog
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +53,9 @@ class MainWindow:
         self.settings_manager = settings_manager
         self.error_handler = error_handler
         
+        # Initialize usage tracker
+        self.usage_tracker = UsageTracker(db_manager)
+        
         # Configure root window
         self.root.title("DALL-E Image Generator")
         
@@ -73,6 +80,9 @@ class MainWindow:
         self._create_menu()
         self._setup_main_ui()
         self._setup_status_bar()
+        
+        # Verify API key
+        self._update_api_status()
         
         logger.info("Main window initialized")
     
@@ -130,6 +140,7 @@ class MainWindow:
         tools_menu.add_command(label="Verify API Key", command=self._verify_api_key)
         tools_menu.add_command(label="Clean Old Files", command=self._cleanup_files)
         tools_menu.add_command(label="Manage Templates", command=self._show_template_manager)
+        tools_menu.add_command(label="Usage Statistics", command=self._show_usage_stats)
         tools_menu.add_separator()
         tools_menu.add_command(label="View Error Reports", command=self._show_error_reports)
         
@@ -205,16 +216,12 @@ class MainWindow:
     def _update_api_status(self):
         """Update API connection status."""
         try:
-            if self.openai_client.validate_api_key():
-                self.api_status.config(
-                    text="API: Connected ✓",
-                    fg="green"
-                )
-            else:
-                self.api_status.config(
-                    text="API: Invalid Key ✗",
-                    fg="red"
-                )
+            # Check API key in background
+            threading.Thread(
+                target=self._verify_api_key,
+                daemon=True
+            ).start()
+            
         except Exception as e:
             self.api_status.config(
                 text="API: Error ✗",
@@ -268,6 +275,13 @@ class MainWindow:
             )
             self.db_manager.add_generation(generation)
             
+            # Record usage
+            self.usage_tracker.record_usage(
+                tokens=usage_info["estimated_tokens"],
+                model=usage_info.get("model", "unknown"),
+                size=settings["size"]
+            )
+            
             # Update preview
             self.generation_tab.set_preview_image(images[0])
             
@@ -283,13 +297,23 @@ class MainWindow:
     @handle_errors()
     def _verify_api_key(self):
         """Verify API key functionality."""
-        if self.openai_client.validate_api_key():
-            messagebox.showinfo(
-                "Success",
-                "API key is valid and working correctly."
+        try:
+            if self.openai_client.validate_api_key():
+                self.api_status.config(
+                    text="API: Connected ✓",
+                    fg="green"
+                )
+            else:
+                self.api_status.config(
+                    text="API: Invalid Key ✗",
+                    fg="red"
+                )
+        except Exception as e:
+            self.api_status.config(
+                text="API: Error ✗",
+                fg="red"
             )
-        else:
-            raise APIError("API key validation failed")
+            logger.error(f"API status check failed: {str(e)}")
     
     @handle_errors()
     def _cleanup_files(self):
@@ -327,6 +351,16 @@ class MainWindow:
             self.root,
             self.db_manager,
             error_handler=self.error_handler
+        )
+        dialog.focus()
+    
+    @handle_errors()
+    def _show_usage_stats(self):
+        """Show usage statistics dialog."""
+        dialog = UsageDialog(
+            self.root,
+            self.usage_tracker,
+            self.error_handler
         )
         dialog.focus()
     

@@ -15,6 +15,8 @@ from config import APP_CONFIG, ensure_directories
 from datetime import datetime
 import json
 import sqlite3
+import ast
+import re
 
 # Configure logging
 logging.basicConfig(
@@ -32,17 +34,82 @@ load_dotenv()
 
 class DALLEGeneratorApp:
     def __init__(self, root):
+        """Initialize the application.
+        
+        Args:
+            root (tk.Tk): The root window
+        """
         self.root = root
         self.root.title("DALL-E Image Generator")
-        self.root.geometry("1400x1000")
+        self.root.geometry("1200x800")
         
-        # Check for API key
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
-            self.show_api_key_dialog()
+        # Set up logging
+        self.setup_logging()
         
-        # Setup main UI components
+        # Initialize API key
+        self.api_key = os.environ.get("OPENAI_API_KEY")
+        
+        # Initialize database manager
+        self.db_manager = DatabaseManager()
+        
+        # Initialize file manager
+        self.file_manager = FileManager()
+        
+        # Initialize OpenAI client
+        self.openai_client = OpenAIClient()
+        
+        # Initialize usage tracker
+        self.usage_tracker = UsageTracker()
+        
+        # Add default template variables
+        self.add_default_template_variables()
+        
+        # Set up UI
         self.setup_ui()
+        
+        # Set up image generation UI if API key is available
+        if self.api_key:
+            self.setup_image_generation_ui()
+        else:
+            self.show_api_key_dialog()
+    
+    def add_default_template_variables(self):
+        """Add default template variables to the database if they don't exist."""
+        try:
+            # Check if we have any template variables
+            variables = self.db_manager.get_template_variables()
+            logger.info(f"Found {len(variables)} template variables in database")
+            
+            # Add default variables if none exist
+            if not any(var['name'] == 'color' for var in variables):
+                logger.info("Adding default 'color' variable")
+                self.db_manager.add_template_variable(
+                    "color", 
+                    ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'black', 'white']
+                )
+            
+            if not any(var['name'] == 'animal' for var in variables):
+                logger.info("Adding default 'animal' variable")
+                self.db_manager.add_template_variable(
+                    "animal", 
+                    ['cat', 'dog', 'elephant', 'tiger', 'lion', 'bear', 'wolf', 'fox']
+                )
+                
+            if not any(var['name'] == 'environment' for var in variables):
+                logger.info("Adding default 'environment' variable")
+                self.db_manager.add_template_variable(
+                    "environment", 
+                    ['forest', 'desert', 'jungle', 'mountains', 'ocean', 'city', 'space']
+                )
+                
+            logger.info("Default template variables added successfully")
+        except Exception as e:
+            logger.error(f"Error adding default template variables: {str(e)}")
+            
+    def setup_logging(self):
+        """Set up logging for the application."""
+        # Logging is already configured at the module level
+        pass
     
     def setup_ui(self):
         # Placeholder for UI setup
@@ -50,7 +117,8 @@ class DALLEGeneratorApp:
         main_label.pack(pady=20)
         
         # API key status
-        if self.api_key:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if api_key:
             status_label = tk.Label(self.root, text="API Key: ✓ Connected", fg="green", font=("Arial", 10))
         else:
             status_label = tk.Label(self.root, text="API Key: ✗ Not Found", fg="red", font=("Arial", 10))
@@ -143,71 +211,17 @@ class DALLEGeneratorApp:
             utils_label.config(text="Utility Modules: ✗ Error - " + str(e), fg="red")
 
     def setup_image_generation_ui(self):
-        """Set up the image generation UI components."""
-        # Create a frame for image generation
-        generation_frame = Frame(self.generation_tab, padx=20, pady=20)
-        generation_frame.pack(fill="both", expand=True)
+        """Set up the image generation UI."""
+        # Create a frame for the image generation tab
+        generation_frame = ttk.Frame(self.notebook)
+        self.notebook.add(generation_frame, text="Generate Image")
         
-        # Prompt input
-        Label(generation_frame, text="Enter your prompt:", font=("Arial", 12)).pack(anchor="w", pady=(0, 5))
-        self.prompt_text = Text(generation_frame, height=5, width=60)
-        self.prompt_text.pack(fill="x", pady=(0, 10))
-        
-        # Image size selection
-        size_frame = Frame(generation_frame)
-        size_frame.pack(fill="x", pady=(0, 10))
-        
-        Label(size_frame, text="Image Size:", font=("Arial", 10)).pack(side="left", padx=(0, 10))
-        
-        self.size_var = StringVar(value=APP_CONFIG["default_image_size"])
-        # Initialize with default sizes
-        self.sizes = ["256x256", "512x512", "1024x1024"]
-        self.size_menu = self.create_styled_dropdown(size_frame, self.size_var, self.sizes)
-        self.size_menu.pack(side="left", padx=(0, 20))
-        
-        # Quality and style options (will be shown/hidden based on model)
-        self.quality_frame = Frame(size_frame)
-        self.quality_frame.pack(side="left", padx=(0, 10))
-        
-        self.quality_label = Label(self.quality_frame, text="Quality:", font=("Arial", 10))
-        self.quality_var = StringVar(value=APP_CONFIG["default_image_quality"])
-        self.quality_menu = self.create_styled_dropdown(self.quality_frame, self.quality_var, ["standard", "hd"])
-        
-        self.style_frame = Frame(size_frame)
-        self.style_frame.pack(side="left")
-        
-        self.style_label = Label(self.style_frame, text="Style:", font=("Arial", 10))
-        self.style_var = StringVar(value=APP_CONFIG["default_image_style"])
-        self.style_menu = self.create_styled_dropdown(self.style_frame, self.style_var, ["vivid", "natural"])
-        
-        # Model info label
-        self.model_label = Label(size_frame, text="Detecting model...", font=("Arial", 10, "italic"))
-        self.model_label.pack(side="left", padx=(10, 0))
-        
-        # Generate button
-        generate_btn = self.create_styled_button(
-            generation_frame, 
-            text="Generate Image", 
-            command=self.generate_image, 
-            bg_color="#4CAF50", 
-            fg_color="white", 
-            font=("Arial", 12, "bold"), 
-            padx=20, 
-            pady=10
-        )
-        generate_btn.pack(pady=20)
-        
-        # Image preview area - increase size to 800x800
-        self.preview_frame = Frame(generation_frame, bg="#f0f0f0", width=800, height=800)
-        self.preview_frame.pack(pady=20)
-        self.preview_frame.pack_propagate(False)  # Prevent frame from shrinking
-        
-        self.preview_label = Label(self.preview_frame, text="Image preview will appear here", bg="#f0f0f0")
-        self.preview_label.pack(expand=True)
-        
-        # Add note about auto-saving
-        auto_save_note = Label(generation_frame, text="Images are automatically saved to the outputs folder", font=("Arial", 10, "italic"), fg="gray")
-        auto_save_note.pack(pady=(0, 20))
+        # Initialize variables
+        self.model_var = tk.StringVar(value="dall-e-3")
+        self.size_var = tk.StringVar(value="1024x1024")
+        self.quality_var = tk.StringVar(value="standard")
+        self.style_var = tk.StringVar(value="vivid")
+        self.n_var = tk.IntVar(value=1)
         
         # Initialize clients
         self.openai_client = None
@@ -217,7 +231,8 @@ class DALLEGeneratorApp:
         self.current_image = None
         
         # Initialize clients if API key is available
-        if self.api_key:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if api_key:
             try:
                 self.openai_client = OpenAIClient()
                 self.file_manager = FileManager()
@@ -238,35 +253,52 @@ class DALLEGeneratorApp:
             capabilities = self.openai_client.get_model_capabilities()
             model = self.openai_client.model
             
-            # Update model label
-            self.model_label.config(text=f"Using {model}")
-            
-            # Update size options
-            self.size_var.set(capabilities["max_size"])
-            
-            # Remove old size menu and create new one with updated sizes
-            self.size_menu.destroy()
-            self.size_menu = self.create_styled_dropdown(self.size_menu.master, self.size_var, capabilities["sizes"])
-            self.size_menu.pack(side="left", padx=(0, 20))
-            
-            # Show/hide quality and style options based on model capabilities
-            if capabilities["supports_quality"]:
-                self.quality_label.pack(side="left", padx=(0, 5))
-                self.quality_menu.pack(side="left", padx=(0, 10))
+            # Update model label if it exists
+            if hasattr(self, 'model_label'):
+       		    self.model_label.config(text=f"Using {model}")
             else:
-                self.quality_label.pack_forget()
-                self.quality_menu.pack_forget()
+                logger.info(f"Using model: {model}")
+            
+            # Update size options if they exist
+            if hasattr(self, 'size_var'):
+            	self.size_var.set(capabilities["max_size"])
+            
+            # Remove old size menu and create new one with updated sizes if they exist
+            if hasattr(self, 'size_menu') and hasattr(self, 'size_var'):
+                try:
+                    self.size_menu.destroy()
+                    self.size_menu = self.create_styled_dropdown(self.size_menu.master, self.size_var, capabilities["sizes"])
+                    self.size_menu.pack(side="left", padx=(0, 20))
+                except Exception as e:
+                    logger.error(f"Error updating size menu: {str(e)}")
+            
+            # Show/hide quality and style options based on model capabilities if they exist
+            if hasattr(self, 'quality_label') and hasattr(self, 'quality_menu'):
+                try:
+                    if capabilities["supports_quality"]:
+                        self.quality_label.pack(side="left", padx=(0, 5))
+                        self.quality_menu.pack(side="left", padx=(0, 10))
+                    else:
+                        self.quality_label.pack_forget()
+                        self.quality_menu.pack_forget()
+                except Exception as e:
+                    logger.error(f"Error updating quality options: {str(e)}")
                 
-            if capabilities["supports_style"]:
-                self.style_label.pack(side="left", padx=(0, 5))
-                self.style_menu.pack(side="left")
-            else:
-                self.style_label.pack_forget()
-                self.style_menu.pack_forget()
+            if hasattr(self, 'style_label') and hasattr(self, 'style_menu'):
+                try:
+                    if capabilities["supports_style"]:
+                        self.style_label.pack(side="left", padx=(0, 5))
+                        self.style_menu.pack(side="left")
+                    else:
+                        self.style_label.pack_forget()
+                        self.style_menu.pack_forget()
+                except Exception as e:
+                    logger.error(f"Error updating style options: {str(e)}")
                 
         except Exception as e:
             logger.error(f"Error updating UI for model: {str(e)}")
-            self.model_label.config(text="Error detecting model")
+            if hasattr(self, 'model_label'):
+                self.model_label.config(text="Error detecting model")
 
     def generate_image(self):
         """Generate an image based on the prompt."""
@@ -677,37 +709,24 @@ class DALLEGeneratorApp:
             logger.error(f"Exception traceback: {traceback.format_exc()}")
 
     def setup_history_ui(self):
-        """Set up the history UI components for prompt and generation history."""
+        """Set up the history UI."""
         # Create a frame for history
-        history_frame = Frame(self.history_tab, padx=20, pady=20)
-        history_frame.pack(fill="both", expand=True)
+        history_frame = ttk.LabelFrame(self.notebook, text="History")
+        self.notebook.add(history_frame, text="History")
         
-        # Create sub-tabs for prompt history and generation history
-        history_notebook = self.create_styled_notebook(
-            history_frame,
-            selected_bg_color="#2196F3",
-            selected_fg_color="white",
-            font=("Arial", 10)
-        )
-        history_notebook.pack(fill="both", expand=True)
+        # Create tabs for history and templates
+        history_tabs = ttk.Notebook(history_frame)
+        history_tabs.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Create sub-tabs
-        prompt_history_tab = Frame(history_notebook)
-        generation_history_tab = Frame(history_notebook)
-        template_management_tab = Frame(history_notebook)
+        # History tab
+        history_tab = ttk.Frame(history_tabs)
+        history_tabs.add(history_tab, text="Generation History")
         
-        history_notebook.add(prompt_history_tab, text="Prompt History")
-        history_notebook.add(generation_history_tab, text="Generation History")
-        history_notebook.add(template_management_tab, text="Template Management")
+        # Set up history UI
+        self.setup_generation_history_ui(history_tab)
         
-        # Setup prompt history UI
-        self.setup_prompt_history_ui(prompt_history_tab)
-        
-        # Setup generation history UI
-        self.setup_generation_history_ui(generation_history_tab)
-        
-        # Setup template management UI
-        self.setup_template_management_ui(template_management_tab)
+        # Set up template management UI in a separate tab in the main notebook
+        self.setup_template_management_ui()
     
     def setup_prompt_history_ui(self, parent_frame):
         """Set up the prompt history UI components."""
@@ -1418,153 +1437,97 @@ class DALLEGeneratorApp:
         
         return notebook
 
-    def setup_template_management_ui(self, parent):
-        """Set up the template management UI.
+    def setup_template_management_ui(self):
+        """Set up the template management UI."""
+        # Create a frame for template management
+        template_frame = ttk.LabelFrame(self.notebook, text="Template Management")
+        self.notebook.add(template_frame, text="Templates")
         
-        Args:
-            parent (tk.Frame): The parent frame
-        """
-        # Create main frame
-        template_frame = ttk.Frame(parent)
-        template_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Split into left and right panes
+        template_panes = ttk.PanedWindow(template_frame, orient=tk.HORIZONTAL)
+        template_panes.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Split into left and right panels
-        left_panel = ttk.Frame(template_frame)
-        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
-        
-        right_panel = ttk.Frame(template_frame)
-        right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
-        
-        # Left panel - Template list
-        ttk.Label(left_panel, text="Available Templates", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(0, 5))
+        # Left pane - Template list
+        left_pane = ttk.Frame(template_panes)
+        template_panes.add(left_pane, weight=1)
         
         # Template list with scrollbar
-        template_list_frame = ttk.Frame(left_panel)
-        template_list_frame.pack(fill=tk.BOTH, expand=True)
+        ttk.Label(left_pane, text="Available Templates:").pack(anchor=tk.W, pady=(0, 5))
         
-        template_scrollbar = ttk.Scrollbar(template_list_frame)
-        template_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        list_frame = ttk.Frame(left_pane)
+        list_frame.pack(fill=tk.BOTH, expand=True)
         
-        self.template_list = tk.Listbox(template_list_frame, yscrollcommand=template_scrollbar.set, 
-                                        font=("Arial", 10), selectmode=tk.SINGLE, height=10)
+        self.template_list = tk.Listbox(list_frame, height=15, width=40)
         self.template_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        template_scrollbar.config(command=self.template_list.yview)
-        
-        # Bind selection event
         self.template_list.bind('<<ListboxSelect>>', self.on_template_selected)
         
-        # Template actions buttons
-        template_actions_frame = ttk.Frame(left_panel)
-        template_actions_frame.pack(fill=tk.X, pady=5)
+        template_scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.template_list.yview)
+        template_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.template_list.config(yscrollcommand=template_scrollbar.set)
         
-        self.edit_template_btn = ttk.Button(template_actions_frame, text="Edit", state=tk.DISABLED,
-                                           command=self.edit_selected_template)
-        self.edit_template_btn.pack(side=tk.LEFT, padx=(0, 5))
+        # Buttons for template actions
+        btn_frame = ttk.Frame(left_pane)
+        btn_frame.pack(fill=tk.X, pady=10)
         
-        self.delete_template_btn = ttk.Button(template_actions_frame, text="Delete", state=tk.DISABLED,
-                                             command=self.delete_selected_template)
+        self.edit_template_btn = ttk.Button(btn_frame, text="Edit", command=self.edit_selected_template, state=tk.DISABLED)
+        self.edit_template_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.clone_template_btn = ttk.Button(btn_frame, text="Clone", command=self.clone_template, state=tk.DISABLED)
+        self.clone_template_btn.pack(side=tk.LEFT, padx=5)
+        
+        self.delete_template_btn = ttk.Button(btn_frame, text="Delete", command=self.delete_selected_template, state=tk.DISABLED)
         self.delete_template_btn.pack(side=tk.LEFT, padx=5)
         
-        self.use_template_btn = ttk.Button(template_actions_frame, text="Use Template", state=tk.DISABLED,
-                                          command=self.use_selected_template)
+        self.use_template_btn = ttk.Button(btn_frame, text="Use", command=self.use_selected_template, state=tk.DISABLED)
         self.use_template_btn.pack(side=tk.LEFT, padx=5)
         
-        # Right panel - Template editor
-        ttk.Label(right_panel, text="Template Editor", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(0, 5))
+        # Right pane - Template editor
+        right_pane = ttk.Frame(template_panes)
+        template_panes.add(right_pane, weight=2)
         
-        # Template name
-        name_frame = ttk.Frame(right_panel)
-        name_frame.pack(fill=tk.X, pady=5)
+        # Template editor
+        ttk.Label(right_pane, text="Template Name:").pack(anchor=tk.W, pady=(0, 5))
+        self.template_name_entry = ttk.Entry(right_pane, width=50)
+        self.template_name_entry.pack(fill=tk.X, pady=(0, 10))
         
-        ttk.Label(name_frame, text="Template Name:").pack(side=tk.LEFT)
-        self.template_name_entry = ttk.Entry(name_frame, width=30)
-        self.template_name_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        ttk.Label(right_pane, text="Template Text:").pack(anchor=tk.W, pady=(0, 5))
         
-        # Template text
-        ttk.Label(right_panel, text="Template Text (use {{variable_name}} for variables):").pack(anchor=tk.W, pady=(5, 0))
+        # Text area with scrollbar
+        text_frame = ttk.Frame(right_pane)
+        text_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        text_frame = ttk.Frame(right_panel)
-        text_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
-        text_scrollbar = ttk.Scrollbar(text_frame)
-        text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.template_text = tk.Text(text_frame, height=8, width=40, yscrollcommand=text_scrollbar.set)
+        self.template_text = tk.Text(text_frame, height=10, width=50, wrap=tk.WORD)
         self.template_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        text_scrollbar.config(command=self.template_text.yview)
         
-        # Template actions
-        template_btn_frame = ttk.Frame(right_panel)
-        template_btn_frame.pack(fill=tk.X, pady=5)
+        text_scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=self.template_text.yview)
+        text_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.template_text.config(yscrollcommand=text_scrollbar.set)
         
-        ttk.Button(template_btn_frame, text="Save Template", command=self.save_template).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(template_btn_frame, text="Clear", command=self.clear_template_editor).pack(side=tk.LEFT)
+        # Variable list
+        var_frame = ttk.Frame(right_pane)
+        var_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        # Variable management
-        ttk.Label(right_panel, text="Variable Management", font=("Arial", 12, "bold")).pack(anchor=tk.W, pady=(10, 5))
+        ttk.Label(var_frame, text="Variables:").pack(anchor=tk.W, pady=(0, 5))
         
-        # Variable list with scrollbar
-        var_list_frame = ttk.Frame(right_panel)
-        var_list_frame.pack(fill=tk.X, pady=5)
+        var_list_frame = ttk.Frame(var_frame)
+        var_list_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        var_scrollbar = ttk.Scrollbar(var_list_frame)
-        var_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.variable_list = tk.Listbox(var_list_frame, yscrollcommand=var_scrollbar.set, 
-                                       font=("Arial", 10), selectmode=tk.SINGLE, height=5)
+        self.variable_list = tk.Listbox(var_list_frame, height=5, width=30)
         self.variable_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        var_scrollbar.config(command=self.variable_list.yview)
         
-        # Bind selection event
-        self.variable_list.bind('<<ListboxSelect>>', self.on_variable_selected)
+        var_scrollbar = ttk.Scrollbar(var_list_frame, orient=tk.VERTICAL, command=self.variable_list.yview)
+        var_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.variable_list.config(yscrollcommand=var_scrollbar.set)
         
-        # Variable actions
-        var_btn_frame = ttk.Frame(right_panel)
-        var_btn_frame.pack(fill=tk.X, pady=5)
-        
-        ttk.Button(var_btn_frame, text="Add Variable", command=self.add_template_variable).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(var_btn_frame, text="Edit", command=self.edit_selected_variable).pack(side=tk.LEFT, padx=5)
-        ttk.Button(var_btn_frame, text="Delete", command=self.delete_selected_variable).pack(side=tk.LEFT, padx=5)
-        
-        # Variable editor
-        var_editor_frame = ttk.Frame(right_panel)
-        var_editor_frame.pack(fill=tk.X, pady=5)
-        
-        ttk.Label(var_editor_frame, text="Variable Name:").grid(row=0, column=0, sticky=tk.W, pady=2)
-        self.variable_name_entry = ttk.Entry(var_editor_frame, width=20)
-        self.variable_name_entry.grid(row=0, column=1, sticky=tk.W+tk.E, pady=2, padx=5)
-        
-        ttk.Label(var_editor_frame, text="Values (one per line):").grid(row=1, column=0, sticky=tk.W, pady=2)
-        
-        values_frame = ttk.Frame(var_editor_frame)
-        values_frame.grid(row=1, column=1, sticky=tk.W+tk.E, pady=2, padx=5)
-        
-        values_scrollbar = ttk.Scrollbar(values_frame)
-        values_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        self.variable_values_text = tk.Text(values_frame, height=4, width=30, yscrollcommand=values_scrollbar.set)
-        self.variable_values_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        values_scrollbar.config(command=self.variable_values_text.yview)
-        
-        # Variable save/clear buttons
-        var_action_frame = ttk.Frame(var_editor_frame)
-        var_action_frame.grid(row=2, column=1, sticky=tk.E, pady=5)
-        
-        ttk.Button(var_action_frame, text="Save Variable", command=self.save_variable).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(var_action_frame, text="Clear", command=self.clear_variable_editor).pack(side=tk.LEFT)
-        
-        # Initialize
-        self.selected_variable_id = None
-        self.selected_template_id = None
+        # Save button
+        save_btn = ttk.Button(right_pane, text="Save Template", command=self.save_template)
+        save_btn.pack(pady=10)
         
         # Load templates
         self.load_templates()
-        
-        # Load template variables
-        self.load_template_variables()
-
-    def load_template_variables(self):
-        """Load template variables from the database."""
+    
+    def load_templates(self):
+        """Load templates from the database."""
         if not self.db_manager:
             try:
                 self.db_manager = DatabaseManager()
@@ -1573,264 +1536,33 @@ class DALLEGeneratorApp:
                 return
         
         try:
-            # Get variables from database
-            variables = self.db_manager.get_template_variables()
+            # Get templates from database
+            templates = self.db_manager.get_template_history()
             
             # Clear listbox
-            self.variable_list.delete(0, tk.END)
+            self.template_list.delete(0, tk.END)
             
-            # Store variable IDs in a list for reference
-            self.variable_ids = []
+            # Store template IDs in a list for reference
+            self.template_ids = []
             
-            # Add variables to listbox
-            for var in variables:
+            # Add templates to listbox
+            for template in templates:
                 # Format display text
-                display_text = f"{var['name']} ({len(var['values'])} values)"
+                display_text = f"{template['name']} ({len(template['variables'])} variables)"
                 
-                # Store the variable ID in our list
-                self.variable_ids.append(var['id'])
+                # Store the template ID in our list
+                self.template_ids.append(template['id'])
                 
                 # Add to listbox
-                self.variable_list.insert(tk.END, display_text)
+                self.template_list.insert(tk.END, display_text)
             
-            if not variables:
-                self.variable_list.insert(tk.END, "No variables defined")
-                self.variable_ids = []
-        except Exception as e:
-            logger.error(f"Error loading template variables: {str(e)}")
-            messagebox.showerror("Error", f"Failed to load template variables: {str(e)}")
-    
-    def on_variable_selected(self, event):
-        """Handle variable selection event."""
-        if not self.db_manager or not hasattr(self, 'variable_ids'):
-            return
-        
-        # Get selected index
-        selection = self.variable_list.curselection()
-        if not selection or not self.variable_ids:
-            return
-        
-        # Get variable ID from our list
-        try:
-            index = selection[0]
-            if index >= len(self.variable_ids):
-                return
-            
-            variable_id = self.variable_ids[index]
-            
-            # Get variable from database
-            variables = self.db_manager.get_template_variables()
-            variable = next((v for v in variables if v['id'] == variable_id), None)
-            
-            if not variable:
-                return
-            
-            # Store selected variable
-            self.selected_variable = variable
-            
-        except Exception as e:
-            logger.error(f"Error getting variable details: {str(e)}")
-    
-    def add_template_variable(self):
-        """Add a new template variable to the database."""
-        if not self.db_manager:
-            try:
-                self.db_manager = DatabaseManager()
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to initialize database: {str(e)}")
-                return
-        
-        try:
-            # Get variable name
-            var_name = self.variable_name_entry.get().strip()
-            if not var_name:
-                messagebox.showerror("Error", "Variable name cannot be empty")
-                return
-            
-            # Get variable values
-            values_text = self.variable_values_text.get("1.0", "end-1c").strip()
-            if not values_text:
-                messagebox.showerror("Error", "Variable must have at least one value")
-                return
-            
-            # Split values by line
-            values = [v.strip() for v in values_text.split('\n') if v.strip()]
-            
-            # Add variable to database
-            variable_id = self.db_manager.add_template_variable(var_name, values)
-            
-            if variable_id:
-                # Clear inputs
-                self.clear_variable_editor()
-                
-                # Refresh variable list
-                self.load_template_variables()
-                
-                # Show confirmation
-                messagebox.showinfo("Success", f"Variable '{var_name}' added successfully")
-            else:
-                messagebox.showerror("Error", "Failed to add variable")
-        except Exception as e:
-            logger.error(f"Error adding template variable: {str(e)}")
-            messagebox.showerror("Error", f"Failed to add variable: {str(e)}")
-    
-    def edit_selected_variable(self):
-        """Edit the selected variable."""
-        if not hasattr(self, 'selected_variable'):
-            messagebox.showinfo("Info", "Please select a variable to edit")
-            return
-        
-        try:
-            # Load variable data into editor
-            self.variable_name_entry.delete(0, tk.END)
-            self.variable_name_entry.insert(0, self.selected_variable['name'])
-            
-            # Load values
-            self.variable_values_text.delete("1.0", tk.END)
-            values_text = '\n'.join(self.selected_variable['values'])
-            self.variable_values_text.insert("1.0", values_text)
-            
-            # Show confirmation
-            messagebox.showinfo("Info", f"Loaded variable '{self.selected_variable['name']}' for editing. Make changes and click 'Add Variable' to update.")
-        except Exception as e:
-            logger.error(f"Error loading variable for editing: {str(e)}")
-            messagebox.showerror("Error", f"Failed to load variable: {str(e)}")
-    
-    def delete_selected_variable(self):
-        """Delete the selected variable."""
-        if not hasattr(self, 'selected_variable') or not self.db_manager:
-            return
-        
-        try:
-            # Confirm deletion
-            if not messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete the variable '{self.selected_variable['name']}'?"):
-                return
-            
-            # Delete from database
-            success = self.db_manager.delete_template_variable(self.selected_variable['id'])
-            
-            if success:
-                # Refresh variable list
-                self.load_template_variables()
-                
-                # Clear selection
-                if hasattr(self, 'selected_variable'):
-                    delattr(self, 'selected_variable')
-                
-                # Show confirmation
-                messagebox.showinfo("Success", "Variable deleted successfully")
-            else:
-                messagebox.showerror("Error", "Failed to delete variable")
-        except Exception as e:
-            logger.error(f"Error deleting variable: {str(e)}")
-            messagebox.showerror("Error", f"Failed to delete variable: {str(e)}")
-    
-    def clear_variable_editor(self):
-        """Clear the variable editor fields."""
-        self.variable_name_entry.delete(0, tk.END)
-        self.variable_values_text.delete("1.0", tk.END)
-    
-    def save_template(self):
-        """Save a template prompt to the database."""
-        # Get template name and text
-        template_name = self.template_name_entry.get().strip()
-        template_text = self.template_text.get("1.0", tk.END).strip()
-        
-        if not template_name or not template_text:
-            messagebox.showerror("Error", "Template name and text are required")
-            return
-        
-        # Extract variable names from template
-        variables = self.extract_template_variables(template_text)
-        
-        if not variables:
-            messagebox.showwarning("Warning", "No variables found in template. Variables should be in format {{variable_name}}")
-            return
-        
-        try:
-            # Save template to database
-            template_id = self.db_manager.add_prompt(
-                prompt_text=template_name,
-                is_template=True,
-                template_variables=json.dumps(variables)
-            )
-            
-            if template_id:
-                messagebox.showinfo("Success", f"Template '{template_name}' saved successfully")
-                self.clear_template_editor()
-                self.load_templates()  # Refresh template list
-            else:
-                messagebox.showerror("Error", "Failed to save template")
-        except Exception as e:
-            logger.error(f"Error saving template: {str(e)}")
-            messagebox.showerror("Error", f"Failed to save template: {str(e)}")
-    
-    def clear_template_editor(self):
-        """Clear the template editor fields."""
-        self.template_name_entry.delete(0, tk.END)
-        self.template_text.delete("1.0", tk.END)
-
-    def get_templates(self):
-        """Load templates from the database and return them.
-        
-        Returns:
-            list: List of template dictionaries
-        """
-        try:
-            # Use db_manager instead of direct cursor access
-            # Get all prompts and filter for templates
-            prompts = self.db_manager.get_prompt_history(limit=100)
-            # Filter to only include templates
-            templates = [p for p in prompts if p.get('is_template', 0) == 1]
-            return templates
+            if not templates:
+                self.template_list.insert(tk.END, "No templates defined")
+                self.template_ids = []
         except Exception as e:
             logger.error(f"Error loading templates: {str(e)}")
-            return []
-
-    def load_templates(self):
-        """Load templates from the database and populate the template list."""
-        # Clear the current list
-        self.template_list.delete(0, tk.END)
-        
-        # Get templates from the database
-        templates = self.get_templates()
-        
-        # Add templates to the list
-        for template in templates:
-            # Format: Template Name (# variables)
-            var_count = len(template['template_variables']) if template['template_variables'] else 0
-            display_text = f"{template['prompt_text'][:30]}... ({var_count} vars)"
-            
-            # Insert into list with the template ID as the value
-            self.template_list.insert(tk.END, display_text)
-            # Store the template ID in the list item
-            self.template_list.itemconfig(tk.END, {'template_id': template['id']})
-        
-        if not templates:
-            self.template_list.insert(tk.END, "No templates found")
-            
-        logger.info(f"Loaded {len(templates)} templates")
-
-    def extract_template_variables(self, template_text):
-        """Extract variable names from a template text.
-        
-        Variables are identified by {{variable_name}} pattern.
-        
-        Args:
-            template_text (str): The template text
-            
-        Returns:
-            list: List of unique variable names
-        """
-        import re
-        
-        # Find all occurrences of {{variable_name}}
-        pattern = r'\{\{([^{}]+)\}\}'
-        matches = re.findall(pattern, template_text)
-        
-        # Return unique variable names
-        return list(set(matches))
-
+            messagebox.showerror("Error", f"Failed to load templates: {str(e)}")
+    
     def on_template_selected(self, event=None):
         """Handle template selection from the list."""
         # Get selected index
@@ -1838,9 +1570,12 @@ class DALLEGeneratorApp:
         if not selection:
             return
         
-        # Get template ID from the selected item
+        # Get template ID from our list using the selected index
         try:
-            template_id = self.template_list.itemcget(selection[0], 'template_id')
+            if not hasattr(self, 'template_ids') or not self.template_ids or selection[0] >= len(self.template_ids):
+                return
+                
+            template_id = self.template_ids[selection[0]]
             if not template_id:
                 return
                 
@@ -1852,12 +1587,63 @@ class DALLEGeneratorApp:
                 
             template = templates[0]
             
-            # Load template data into editor
-            self.template_name_entry.delete(0, tk.END)
-            self.template_name_entry.insert(0, template['prompt_text'])
+            # Debug logging
+            logger.info(f"Template data: {template}")
+            logger.info(f"Template variables (raw): {template['template_variables']}")
+            logger.info(f"Template variables type: {type(template['template_variables'])}")
             
-            # Load template variables
-            variables = json.loads(template['template_variables']) if template['template_variables'] else []
+            # Extract template name and text from JSON structure if possible
+            template_name = template['prompt_text']
+            template_text = template['prompt_text']
+            
+            try:
+                if isinstance(template['prompt_text'], str) and (template['prompt_text'].startswith('{') or template['prompt_text'].startswith('[')):
+                    parsed_data = json.loads(template['prompt_text'])
+                    if isinstance(parsed_data, dict):
+                        if 'name' in parsed_data:
+                            template_name = parsed_data['name']
+                        if 'text' in parsed_data:
+                            template_text = parsed_data['text']
+            except json.JSONDecodeError:
+                # If parsing fails, use the raw text
+                pass
+            
+            # Load template name into editor
+            self.template_name_entry.delete(0, tk.END)
+            self.template_name_entry.insert(0, template_name)
+            
+            # Load template text into text area
+            self.template_text.delete("1.0", tk.END)
+            self.template_text.insert("1.0", template_text)
+            
+            # Parse template variables safely
+            variables = []
+            if template['template_variables'] and isinstance(template['template_variables'], str):
+                template_vars_str = template['template_variables']
+                
+                # The template variables are stored as a JSON string, so we need to parse it
+                try:
+                    # First, try direct JSON parsing
+                    variables = json.loads(template_vars_str)
+                    logger.info(f"Successfully parsed with json.loads(): {variables}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON parsing error: {str(e)}")
+                    # If JSON parsing fails, try to fix common issues
+                    if template_vars_str.startswith('[') and template_vars_str.endswith(']'):
+                        # Try to clean up the string and parse it again
+                        cleaned_str = template_vars_str.replace("'", '"')
+                        try:
+                            variables = json.loads(cleaned_str)
+                            logger.info(f"Successfully parsed with cleaned JSON: {variables}")
+                        except json.JSONDecodeError:
+                            # If that fails, try a more manual approach
+                            content = template_vars_str[1:-1].strip()
+                            if content:
+                                parts = [p.strip().strip('"\'') for p in content.split(',')]
+                                variables = [p for p in parts if p]
+                                logger.info(f"Manual parsing result: {variables}")
+            
+            logger.info(f"Final parsed variables: {variables}")
             
             # Update variable list
             self.variable_list.delete(0, tk.END)
@@ -1865,7 +1651,7 @@ class DALLEGeneratorApp:
                 self.variable_list.insert(tk.END, var)
                 
             # Store the selected template ID
-            self.selected_template_id = template['id']
+            self.selected_template_id = template_id
             
             # Enable edit/delete buttons
             self.edit_template_btn.config(state=tk.NORMAL)
@@ -1883,7 +1669,7 @@ class DALLEGeneratorApp:
             return
             
         # Template is already loaded in the editor from on_template_selected
-        messagebox.showinfo("Edit Template", "Make your changes and click 'Save Template' to update")
+        messagebox.showinfo("Edit Template", "Make your changes and click 'Save Template' to update the existing template")
     
     def delete_selected_template(self):
         """Delete the selected template."""
@@ -1897,7 +1683,7 @@ class DALLEGeneratorApp:
             
         try:
             # Delete template from database
-            success = self.db_manager.delete_prompt(self.selected_template_id)
+            success = self.db_manager.delete_template(self.selected_template_id)
             
             if not success:
                 messagebox.showerror("Error", "Failed to delete template")
@@ -1930,18 +1716,81 @@ class DALLEGeneratorApp:
             
         try:
             # Get template from database
-            templates = self.db_manager.get_prompt_history(prompt_id=self.selected_template_id)
+            templates = self.db_manager.get_template_history(template_id=self.selected_template_id)
             if not templates:
                 messagebox.showerror("Error", "Template not found")
                 return
                 
             template = templates[0]
             
-            # Show template variable dialog
-            self.show_template_variable_dialog(template['prompt_text'], json.loads(template['template_variables']))
+            # Debug logging
+            logger.info(f"Using template: {template}")
+            logger.info(f"Template variables (raw): {template['variables']}")
+            logger.info(f"Template variables type: {type(template['variables'])}")
+            
+            # Extract template text from JSON structure if possible
+            template_name = template['name']
+            template_text = template['text']
+            
+            try:
+                if isinstance(template['text'], str) and (template['text'].startswith('{') or template['text'].startswith('[')):
+                    parsed_data = json.loads(template['text'])
+                    if isinstance(parsed_data, dict):
+                        if 'name' in parsed_data:
+                            template_name = parsed_data['name']
+                        if 'text' in parsed_data:
+                            template_text = parsed_data['text']
+                    logger.info(f"Extracted template name: {template_name}")
+                    logger.info(f"Extracted template text: {template_text}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing template JSON: {str(e)}")
+                # If parsing fails, use the raw text
+                pass
+            
+            # Parse template variables safely
+            variables = []
+            if template['variables'] and isinstance(template['variables'], str):
+                template_vars_str = template['variables']
+                logger.info(f"Template variables string: '{template_vars_str}'")
+                
+                # The template variables are stored as a JSON string, so we need to parse it
+                try:
+                    # First, try direct JSON parsing
+                    variables = json.loads(template_vars_str)
+                    logger.info(f"Successfully parsed with json.loads(): {variables}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON parsing error: {str(e)}")
+                    # If JSON parsing fails, try to fix common issues
+                    if template_vars_str.startswith('[') and template_vars_str.endswith(']'):
+                        # Try to clean up the string and parse it again
+                        cleaned_str = template_vars_str.replace("'", '"')
+                        try:
+                            variables = json.loads(cleaned_str)
+                            logger.info(f"Successfully parsed with cleaned JSON: {variables}")
+                        except json.JSONDecodeError:
+                            # If that fails, try a more manual approach
+                            content = template_vars_str[1:-1].strip()
+                            if content:
+                                # Split by comma but handle quoted strings properly
+                                import re
+                                # This regex matches either a quoted string or a non-comma string
+                                parts = re.findall(r'"([^"]*)"|\s*([^,\s][^,]*[^,\s])\s*|\'([^\']*)\'', content)
+                                # Flatten the results and remove empty strings
+                                variables = [next(s for s in part if s) for part in parts if any(s for s in part)]
+                                logger.info(f"Manual parsing result: {variables}")
+            
+            logger.info(f"Final parsed variables: {variables}")
+            
+            # Extract variables from template text if none were found in the database
+            if not variables:
+                variables = self.extract_template_variables(template_text)
+                logger.info(f"Extracted variables from template text: {variables}")
+            
+            # Show template variable dialog with the actual template text
+            self.show_template_variable_dialog(template_text, variables)
         except Exception as e:
             logger.error(f"Error using template: {str(e)}")
-            messagebox.showerror("Error", f"Failed to use template: {str(e)}")
+            messagebox.showerror("Error", f"Error using template: {str(e)}")
     
     def show_template_variable_dialog(self, template_text, variables):
         """Show a dialog to fill in template variables.
@@ -1984,13 +1833,19 @@ class DALLEGeneratorApp:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Get all template variables from database
-        template_variables = self.db_manager.get_template_variables()
+        db_template_variables = self.db_manager.get_template_variables()
         var_values_dict = {}
         
+        # Log the variables we're working with
+        logger.info(f"Template variables to fill: {variables}")
+        logger.info(f"Database template variables: {db_template_variables}")
+        
         # Create a dictionary of variable names to their values
-        for var in template_variables:
+        for var in db_template_variables:
             if var['name'] in variables:
-                var_values_dict[var['name']] = json.loads(var['value_list']) if var['value_list'] else []
+                var_values_dict[var['name']] = var.get('values', [])
+        
+        logger.info(f"Variable values dictionary: {var_values_dict}")
         
         # Add variable inputs
         for i, var_name in enumerate(variables):
@@ -2065,40 +1920,133 @@ class DALLEGeneratorApp:
         # Show confirmation
         messagebox.showinfo("Success", "Template prompt generated successfully")
     
-    def save_variable(self):
-        """Save a template variable."""
-        # Get variable name and values
-        var_name = self.variable_name_entry.get().strip()
-        var_values_text = self.variable_values_text.get("1.0", tk.END).strip()
+    def save_template(self):
+        """Save a template prompt to the database."""
+        # Get template name and text
+        template_name = self.template_name_entry.get().strip()
+        template_text = self.template_text.get("1.0", tk.END).strip()
         
-        if not var_name:
-            messagebox.showerror("Error", "Variable name is required")
+        if not template_name or not template_text:
+            messagebox.showerror("Error", "Template name and text are required")
             return
-            
-        if not var_values_text:
-            messagebox.showerror("Error", "At least one variable value is required")
-            return
-            
-        # Split values by line
-        values = [line.strip() for line in var_values_text.split('\n') if line.strip()]
         
-        if not values:
-            messagebox.showerror("Error", "At least one variable value is required")
+        # Extract variable names from template
+        variables = self.extract_template_variables(template_text)
+        
+        if not variables:
+            messagebox.showwarning("Warning", "No variables found in template. Variables should be in format {{variable_name}}")
+            return
+        
+        try:
+            # Create a combined structure to store both name and text
+            template_data = {
+                "name": template_name,
+                "text": template_text
+            }
+            
+            # Check if we're editing an existing template
+            if hasattr(self, 'selected_template_id') and self.selected_template_id:
+                # Update existing template
+                success = self.db_manager.update_template(
+                    self.selected_template_id,
+                    template_text=json.dumps(template_data),
+                    variables=json.dumps(variables)
+                )
+                
+                if success:
+                    messagebox.showinfo("Success", f"Template '{template_name}' updated successfully")
+                    self.clear_template_editor()
+                    self.load_templates()  # Refresh template list
+                    # Reset selected template ID
+                    self.selected_template_id = None
+                else:
+                    messagebox.showerror("Error", "Failed to update template")
+            else:
+                # Create new template
+                template_id = self.db_manager.add_template(
+                    template_text=json.dumps(template_data),  # Store both name and text as JSON
+                    variables=json.dumps(variables)
+                )
+                
+                if template_id:
+                    messagebox.showinfo("Success", f"Template '{template_name}' saved successfully")
+                    self.clear_template_editor()
+                    self.load_templates()  # Refresh template list
+                else:
+                    messagebox.showerror("Error", "Failed to save template")
+        except Exception as e:
+            logger.error(f"Error saving template: {str(e)}")
+            messagebox.showerror("Error", f"Failed to save template: {str(e)}")
+            
+    def clone_template(self):
+        """Clone the selected template."""
+        if not hasattr(self, 'selected_template_id') or not self.selected_template_id:
+            messagebox.showerror("Error", "No template selected")
             return
             
         try:
-            # Save variable to database
-            result = self.db_manager.add_template_variable(var_name, json.dumps(values))
+            # Get template from database
+            templates = self.db_manager.get_template_history(template_id=self.selected_template_id)
+            if not templates:
+                messagebox.showerror("Error", "Template not found")
+                return
+                
+            template = templates[0]
             
-            if result:
-                messagebox.showinfo("Success", f"Variable '{var_name}' saved successfully")
-                self.clear_variable_editor()
-                self.load_template_variables()
-            else:
-                messagebox.showerror("Error", "Failed to save variable")
+            # Extract template name and text from JSON structure if possible
+            template_name = template['name']
+            template_text = template['text']
+            
+            try:
+                if isinstance(template['text'], str) and (template['text'].startswith('{') or template['text'].startswith('[')):
+                    parsed_data = json.loads(template['text'])
+                    if isinstance(parsed_data, dict):
+                        if 'name' in parsed_data:
+                            template_name = parsed_data['name']
+                        if 'text' in parsed_data:
+                            template_text = parsed_data['text']
+            except json.JSONDecodeError:
+                # If parsing fails, use the raw text
+                pass
+            
+            # Update template name to indicate it's a clone
+            template_name = f"{template_name} (Clone)"
+            
+            # Load template data into editor
+            self.template_name_entry.delete(0, tk.END)
+            self.template_name_entry.insert(0, template_name)
+            
+            # Load template text into text area
+            self.template_text.delete("1.0", tk.END)
+            self.template_text.insert("1.0", template_text)
+            
+            # Clear selected template ID to ensure we create a new one
+            self.selected_template_id = None
+            
+            messagebox.showinfo("Clone Template", "Template cloned. Make your changes and click 'Save Template' to create a new template")
         except Exception as e:
-            logger.error(f"Error saving variable: {str(e)}")
-            messagebox.showerror("Error", f"Failed to save variable: {str(e)}")
+            logger.error(f"Error cloning template: {str(e)}")
+            messagebox.showerror("Error", f"Failed to clone template: {str(e)}")
+            
+    def extract_template_variables(self, template_text):
+        """Extract variable names from a template text.
+        
+        Variables are identified by {{variable_name}} pattern.
+        
+        Args:
+            template_text (str): The template text
+            
+        Returns:
+            list: List of unique variable names
+        """
+        import re
+        
+        # Find all occurrences of {{variable_name}}
+        pattern = r'\{\{([^{}]+)\}\}'
+        matches = re.findall(pattern, template_text)
+        
+        # Return unique variable names
+        return list(set(matches))
 
 if __name__ == "__main__":
     root = tk.Tk()

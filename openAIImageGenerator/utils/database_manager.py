@@ -306,6 +306,116 @@ class DatabaseManager:
             self.conn.rollback()
             return False
     
+    def add_template(self, template_text, variables=None):
+        """Add a new template to the database.
+        
+        Args:
+            template_text (str): The template text or JSON string
+            variables (str, optional): JSON string of template variables. Defaults to None.
+            
+        Returns:
+            int: The ID of the newly created template
+        """
+        try:
+            now = datetime.now().isoformat()
+            
+            self.cursor.execute(
+                """
+                INSERT INTO prompt_history 
+                (prompt_text, template_variables, creation_date, last_used, is_template) 
+                VALUES (?, ?, ?, ?, 1)
+                """,
+                (template_text, variables, now, now)
+            )
+            
+            template_id = self.cursor.lastrowid
+            self.conn.commit()
+            
+            logger.info(f"Added template with ID: {template_id}")
+            return template_id
+        except sqlite3.Error as e:
+            logger.error(f"Error adding template: {str(e)}")
+            self.conn.rollback()
+            return None
+            
+    def update_template(self, template_id, template_text=None, variables=None):
+        """Update an existing template.
+        
+        Args:
+            template_id (int): The ID of the template to update
+            template_text (str, optional): The new template text. Defaults to None.
+            variables (str, optional): JSON string of template variables. Defaults to None.
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Build SET clause based on provided fields
+            set_clauses = []
+            params = []
+            
+            if template_text is not None:
+                set_clauses.append("prompt_text = ?")
+                params.append(template_text)
+                
+            if variables is not None:
+                set_clauses.append("template_variables = ?")
+                params.append(variables)
+                
+            if not set_clauses:
+                logger.warning(f"No valid fields provided to update template {template_id}")
+                return False
+                
+            # Update last_used timestamp
+            set_clauses.append("last_used = ?")
+            params.append(datetime.now().isoformat())
+            
+            # Add template_id to params
+            params.append(template_id)
+            
+            query = f"UPDATE prompt_history SET {', '.join(set_clauses)} WHERE id = ? AND is_template = 1"
+            self.cursor.execute(query, params)
+            self.conn.commit()
+            
+            if self.cursor.rowcount > 0:
+                logger.info(f"Updated template {template_id}")
+                return True
+            else:
+                logger.warning(f"No template found with ID {template_id}")
+                return False
+        except sqlite3.Error as e:
+            logger.error(f"Error updating template {template_id}: {str(e)}")
+            self.conn.rollback()
+            return False
+            
+    def delete_template(self, template_id):
+        """Delete a template from the database.
+        
+        Args:
+            template_id (int): ID of the template to delete
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            self.cursor.execute(
+                "DELETE FROM prompt_history WHERE id = ? AND is_template = 1", 
+                (template_id,)
+            )
+            
+            self.conn.commit()
+            
+            if self.cursor.rowcount > 0:
+                logger.info(f"Deleted template with ID: {template_id}")
+                return True
+            else:
+                logger.warning(f"No template found with ID {template_id}")
+                return False
+        except sqlite3.Error as e:
+            logger.error(f"Error deleting template: {str(e)}")
+            self.conn.rollback()
+            return False
+    
     # Generation History Methods
     
     def add_generation(self, prompt_id, image_path, parameters, token_usage, cost, description=None, batch_id=None):
@@ -487,26 +597,98 @@ class DatabaseManager:
             raise
     
     def get_template_variables(self):
-        """Get all template variables.
+        """Get all template variables from the database.
         
         Returns:
             list: List of template variable dictionaries
         """
         try:
             self.cursor.execute("SELECT * FROM template_variables ORDER BY name")
-            results = [dict(row) for row in self.cursor.fetchall()]
+            results = self.cursor.fetchall()
             
-            # Process results
+            variables = []
             for row in results:
-                # Convert values from JSON string to Python object
-                if row['value_list']:
-                    row['values'] = json.loads(row['value_list'])
-                    # Add a values key for backward compatibility
+                # Convert JSON string to Python object
+                values = json.loads(row['value_list']) if row['value_list'] else []
+                
+                variables.append({
+                    'id': row['id'],
+                    'name': row['name'],
+                    'values': values
+                })
             
-            return results
+            return variables
         except sqlite3.Error as e:
-            logger.error(f"Error retrieving template variables: {str(e)}")
-            raise
+            logger.error(f"Error getting template variables: {str(e)}")
+            return []
+            
+    def get_template_history(self, template_id=None, limit=None):
+        """Get template history from the database.
+        
+        Args:
+            template_id (int, optional): ID of a specific template to retrieve. Defaults to None.
+            limit (int, optional): Maximum number of templates to return. Defaults to None.
+            
+        Returns:
+            list: List of template dictionaries
+        """
+        try:
+            query = """
+                SELECT p.id, p.prompt_text, p.template_variables, p.creation_date, p.favorite
+                FROM prompt_history p
+                WHERE p.is_template = 1
+            """
+            
+            params = []
+            
+            if template_id:
+                query += " AND p.id = ?"
+                params.append(template_id)
+                
+            query += " ORDER BY p.creation_date DESC"
+            
+            if limit:
+                query += " LIMIT ?"
+                params.append(limit)
+                
+            self.cursor.execute(query, params)
+            results = self.cursor.fetchall()
+            
+            templates = []
+            for row in results:
+                # Parse the template data
+                template_data = {}
+                try:
+                    if row['prompt_text'] and (row['prompt_text'].startswith('{') or row['prompt_text'].startswith('[')):
+                        template_data = json.loads(row['prompt_text'])
+                except json.JSONDecodeError:
+                    template_data = {'text': row['prompt_text']}
+                
+                # Extract name and text
+                template_name = template_data.get('name', row['prompt_text'][:30])
+                template_text = template_data.get('text', row['prompt_text'])
+                
+                # Parse variables
+                variables = []
+                if row['template_variables']:
+                    try:
+                        variables = json.loads(row['template_variables'])
+                    except json.JSONDecodeError:
+                        pass
+                
+                templates.append({
+                    'id': row['id'],
+                    'name': template_name,
+                    'text': template_text,
+                    'variables': row['template_variables'],
+                    'creation_date': row['creation_date'],
+                    'favorite': bool(row['favorite'])
+                })
+            
+            return templates
+        except sqlite3.Error as e:
+            logger.error(f"Error getting template history: {str(e)}")
+            return []
     
     def delete_template_variable(self, variable_id):
         """Delete a template variable.

@@ -7,6 +7,7 @@ import json
 from io import BytesIO
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -175,10 +176,25 @@ class OpenAIImageClient:
 
             # Process images
             images = []
+            revised_prompt = None
             for data in response.data:
-                image_data = base64.b64decode(data.b64_json)
-                image = Image.open(BytesIO(image_data))
-                images.append(image)
+                if hasattr(data, 'revised_prompt') and data.revised_prompt:
+                    revised_prompt = data.revised_prompt
+                
+                if data.b64_json:
+                    # Handle base64 encoded image
+                    image_data = base64.b64decode(data.b64_json)
+                    image = Image.open(BytesIO(image_data))
+                    images.append(image)
+                elif data.url:
+                    # Handle URL-based image
+                    response = requests.get(data.url)
+                    if response.status_code == 200:
+                        image = Image.open(BytesIO(response.content))
+                        images.append(image)
+                    else:
+                        logger.error(f"Failed to download image from URL: {data.url}")
+                        raise Exception(f"Failed to download image: HTTP {response.status_code}")
 
             # Calculate usage information
             size_multiplier = 2 if size == "1024x1024" else 3
@@ -192,6 +208,9 @@ class OpenAIImageClient:
                 "model": self.model,
                 "n": n
             }
+            
+            if revised_prompt:
+                usage_info["revised_prompt"] = revised_prompt
 
             logger.info(f"Successfully generated {len(images)} images")
             return images, usage_info

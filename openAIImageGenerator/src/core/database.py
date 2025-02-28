@@ -5,7 +5,7 @@ import sqlite3
 import json
 import logging
 from datetime import datetime
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Tuple
 from pathlib import Path
 
 from ..utils.error_handler import DatabaseError
@@ -34,7 +34,7 @@ class DatabaseManager:
         # Ensure directory exists
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         
-        self.conn = None
+        self.connection = None
         self.cursor = None
         self.connect()
         self.create_tables()
@@ -44,26 +44,28 @@ class DatabaseManager:
     def connect(self):
         """Connect to SQLite database."""
         try:
-            self.conn = sqlite3.connect(str(self.db_path))
-            self.conn.row_factory = sqlite3.Row
-            self.cursor = self.conn.cursor()
+            self.connection = sqlite3.connect(str(self.db_path))
+            self.connection.row_factory = sqlite3.Row
+            self.cursor = self.connection.cursor()
             logger.info("Connected to database")
         except sqlite3.Error as e:
-            logger.error(f"Error connecting to database: {str(e)}")
-            raise DatabaseError("Failed to connect to database") from e
+            error_msg = f"Error connecting to database: {str(e)}"
+            logger.error(error_msg)
+            raise DatabaseError(error_msg)
     
     def ensure_connection(self):
-        """Ensure database connection is open, reconnect if necessary."""
-        if self.conn is None or self.cursor is None:
-            logger.debug("Database connection not open, reconnecting...")
+        """Ensure database connection is open."""
+        try:
+            # Try a simple query to check connection
+            self.cursor.execute("SELECT 1")
+        except (sqlite3.Error, AttributeError):
+            logger.info("Reconnecting to database")
             self.connect()
     
     def close(self):
-        """Close database connection."""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
-            self.cursor = None
+        """Close the database connection."""
+        if hasattr(self, 'connection') and self.connection:
+            self.connection.close()
             logger.info("Database connection closed")
     
     def create_tables(self):
@@ -97,55 +99,37 @@ class DatabaseManager:
             )
             ''')
             
-            # Batch Generations table
-            self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS batch_generations (
-                id INTEGER PRIMARY KEY,
-                template_prompt_id INTEGER,
-                start_time TIMESTAMP NOT NULL,
-                end_time TIMESTAMP,
-                total_images INTEGER NOT NULL,
-                completed_images INTEGER DEFAULT 0,
-                status TEXT NOT NULL,
-                variable_combinations TEXT,
-                FOREIGN KEY (template_prompt_id) REFERENCES prompt_history (id)
-            )
-            ''')
-            
             # Generation History table
             self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS generation_history (
                 id INTEGER PRIMARY KEY,
-                prompt_id INTEGER,
-                batch_id INTEGER,
+                prompt_id INTEGER NOT NULL,
                 image_path TEXT NOT NULL,
-                generation_date TIMESTAMP NOT NULL,
                 parameters TEXT NOT NULL,
                 token_usage INTEGER NOT NULL,
-                cost FLOAT NOT NULL,
-                user_rating INTEGER DEFAULT 0,
-                description TEXT,
-                FOREIGN KEY (prompt_id) REFERENCES prompt_history (id),
-                FOREIGN KEY (batch_id) REFERENCES batch_generations (id)
+                cost REAL NOT NULL,
+                creation_date TIMESTAMP NOT NULL,
+                FOREIGN KEY (prompt_id) REFERENCES prompt_history (id)
             )
             ''')
             
-            # Usage Stats table
+            # Usage Statistics table
             self.cursor.execute('''
-            CREATE TABLE IF NOT EXISTS usage_stats (
+            CREATE TABLE IF NOT EXISTS usage_statistics (
                 id INTEGER PRIMARY KEY,
-                date DATE UNIQUE NOT NULL,
-                total_tokens INTEGER NOT NULL,
-                total_cost FLOAT NOT NULL,
-                generations_count INTEGER NOT NULL
+                date TEXT NOT NULL UNIQUE,
+                total_tokens INTEGER NOT NULL DEFAULT 0,
+                total_cost REAL NOT NULL DEFAULT 0,
+                generations_count INTEGER NOT NULL DEFAULT 0
             )
             ''')
             
-            self.conn.commit()
+            self.connection.commit()
             logger.info("Database tables created successfully")
         except sqlite3.Error as e:
-            logger.error(f"Error creating database tables: {str(e)}")
-            raise
+            error_msg = f"Error creating database tables: {str(e)}"
+            logger.error(error_msg)
+            raise DatabaseError(error_msg)
     
     def add_prompt(self, prompt: Prompt) -> int:
         """Add or update a prompt in history.
@@ -199,13 +183,42 @@ class DatabaseManager:
                 prompt_id = self.cursor.lastrowid
                 logger.info(f"Added new prompt (ID: {prompt_id})")
             
-            self.conn.commit()
+            self.connection.commit()
             return prompt_id
             
         except sqlite3.Error as e:
             logger.error(f"Error adding prompt: {str(e)}")
-            self.conn.rollback()
+            self.connection.rollback()
             raise
+    
+    def save_prompt(self, prompt_text: str, is_template: bool = False, template_variables: Optional[List[str]] = None) -> int:
+        """Save a prompt to the database.
+        
+        Args:
+            prompt_text: The text of the prompt
+            is_template: Whether this is a template prompt
+            template_variables: List of template variable names if is_template is True
+            
+        Returns:
+            int: ID of the saved prompt
+        """
+        try:
+            # Ensure connection is open
+            self.ensure_connection()
+            
+            # Create a Prompt object
+            prompt = Prompt(
+                prompt_text=prompt_text,
+                is_template=is_template,
+                template_variables=template_variables or []
+            )
+            
+            # Use the add_prompt method to save it
+            return self.add_prompt(prompt)
+            
+        except sqlite3.Error as e:
+            logger.error(f"Error saving prompt: {str(e)}")
+            raise DatabaseError("Failed to save prompt") from e
     
     def get_prompt(self, prompt_id: int) -> Optional[Prompt]:
         """Get a specific prompt by ID.
@@ -290,25 +303,21 @@ class DatabaseManager:
             self.cursor.execute(
                 """
                 INSERT INTO generation_history
-                (prompt_id, batch_id, image_path, generation_date, parameters,
-                 token_usage, cost, user_rating, description)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (prompt_id, image_path, parameters, token_usage, cost, creation_date)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     generation_dict['prompt_id'],
-                    generation_dict['batch_id'],
                     generation_dict['image_path'],
-                    generation_dict['generation_date'],
                     json.dumps(generation_dict['parameters']),
                     generation_dict['token_usage'],
                     generation_dict['cost'],
-                    generation_dict['user_rating'],
-                    generation_dict['description']
+                    generation_dict['generation_date']
                 )
             )
             
             generation_id = self.cursor.lastrowid
-            self.conn.commit()
+            self.connection.commit()
             
             # Update usage stats
             self.update_usage_stats(
@@ -321,49 +330,112 @@ class DatabaseManager:
             
         except sqlite3.Error as e:
             logger.error(f"Error adding generation: {str(e)}")
-            self.conn.rollback()
+            self.connection.rollback()
             raise
     
     def update_usage_stats(self, tokens: int, cost: float):
-        """Update daily usage statistics.
+        """Update usage statistics for the current day.
         
         Args:
             tokens: Number of tokens used
             cost: Cost of the generation
         """
         try:
+            self.ensure_connection()
+            
+            # Get today's date in ISO format
             today = datetime.now().date().isoformat()
             
-            # Try to update existing stats for today
-            self.cursor.execute(
-                """
-                UPDATE usage_stats 
-                SET total_tokens = total_tokens + ?,
-                    total_cost = total_cost + ?,
-                    generations_count = generations_count + 1
-                WHERE date = ?
-                """,
-                (tokens, cost, today)
-            )
-            
-            # If no row was updated, insert new stats
-            if self.cursor.rowcount == 0:
+            # Try to update the new table first
+            try:
+                # Check if we already have a record for today
                 self.cursor.execute(
                     """
-                    INSERT INTO usage_stats 
-                    (date, total_tokens, total_cost, generations_count)
-                    VALUES (?, ?, ?, 1)
+                    SELECT id, total_tokens, total_cost, generations_count
+                    FROM usage_statistics
+                    WHERE date = ?
                     """,
-                    (today, tokens, cost)
+                    (today,)
                 )
-            
-            self.conn.commit()
-            logger.info(f"Updated usage stats for {today}")
-            
+                
+                row = self.cursor.fetchone()
+                
+                if row:
+                    # Update existing record
+                    self.cursor.execute(
+                        """
+                        UPDATE usage_statistics
+                        SET total_tokens = total_tokens + ?,
+                            total_cost = total_cost + ?,
+                            generations_count = generations_count + 1
+                        WHERE date = ?
+                        """,
+                        (tokens, cost, today)
+                    )
+                else:
+                    # Insert new record
+                    self.cursor.execute(
+                        """
+                        INSERT INTO usage_statistics
+                        (date, total_tokens, total_cost, generations_count)
+                        VALUES (?, ?, ?, 1)
+                        """,
+                        (today, tokens, cost)
+                    )
+                    
+                self.connection.commit()
+                logger.info(f"Updated usage stats: {tokens} tokens, ${cost:.4f}")
+                
+            except sqlite3.OperationalError as e:
+                # If the new table doesn't exist, try the old table name
+                if "no such table: usage_statistics" in str(e):
+                    logger.warning("usage_statistics table not found, trying usage_stats")
+                    
+                    # Check if we already have a record for today
+                    self.cursor.execute(
+                        """
+                        SELECT id, total_tokens, total_cost, generations_count
+                        FROM usage_stats
+                        WHERE date = ?
+                        """,
+                        (today,)
+                    )
+                    
+                    row = self.cursor.fetchone()
+                    
+                    if row:
+                        # Update existing record
+                        self.cursor.execute(
+                            """
+                            UPDATE usage_stats
+                            SET total_tokens = total_tokens + ?,
+                                total_cost = total_cost + ?,
+                                generations_count = generations_count + 1
+                            WHERE date = ?
+                            """,
+                            (tokens, cost, today)
+                        )
+                    else:
+                        # Insert new record
+                        self.cursor.execute(
+                            """
+                            INSERT INTO usage_stats
+                            (date, total_tokens, total_cost, generations_count)
+                            VALUES (?, ?, ?, 1)
+                            """,
+                            (today, tokens, cost)
+                        )
+                        
+                    self.connection.commit()
+                    logger.info(f"Updated usage stats (old table): {tokens} tokens, ${cost:.4f}")
+                else:
+                    # If it's a different error, re-raise it
+                    raise
+                
         except sqlite3.Error as e:
             logger.error(f"Error updating usage stats: {str(e)}")
-            self.conn.rollback()
-            raise
+            self.connection.rollback()
+            raise DatabaseError(f"Failed to update usage statistics: {str(e)}")
 
     def get_generation_count(self) -> int:
         """Get total number of generations.
@@ -401,18 +473,27 @@ class DatabaseManager:
             # Ensure connection is open
             self.ensure_connection()
             
+            # Use creation_date from DB but alias it as generation_date for the model
             query = """
-                SELECT gh.*, ph.prompt_text
+                SELECT 
+                    gh.id, 
+                    gh.prompt_id, 
+                    gh.image_path, 
+                    gh.parameters, 
+                    gh.token_usage, 
+                    gh.cost, 
+                    gh.creation_date as generation_date,
+                    ph.prompt_text
                 FROM generation_history gh
                 LEFT JOIN prompt_history ph ON gh.prompt_id = ph.id
             """
             params = []
             
             if search:
-                query += " WHERE ph.prompt_text LIKE ? OR gh.description LIKE ?"
+                query += " WHERE ph.prompt_text LIKE ? OR gh.parameters LIKE ?"
                 params.extend([f"%{search}%", f"%{search}%"])
             
-            query += " ORDER BY gh.generation_date DESC LIMIT ? OFFSET ?"
+            query += " ORDER BY gh.creation_date DESC LIMIT ? OFFSET ?"
             params.extend([limit, offset])
             
             self.cursor.execute(query, params)
@@ -435,9 +516,18 @@ class DatabaseManager:
             # Ensure connection is open
             self.ensure_connection()
             
+            # Use creation_date from DB but alias it as generation_date for the model
             self.cursor.execute(
                 """
-                SELECT gh.*, ph.prompt_text
+                SELECT 
+                    gh.id, 
+                    gh.prompt_id, 
+                    gh.image_path, 
+                    gh.parameters, 
+                    gh.token_usage, 
+                    gh.cost, 
+                    gh.creation_date as generation_date,
+                    ph.prompt_text
                 FROM generation_history gh
                 LEFT JOIN prompt_history ph ON gh.prompt_id = ph.id
                 WHERE gh.id = ?
@@ -463,12 +553,12 @@ class DatabaseManager:
                 "UPDATE generation_history SET user_rating = ? WHERE id = ?",
                 (rating, generation_id)
             )
-            self.conn.commit()
+            self.connection.commit()
             logger.info(f"Updated rating for generation {generation_id}")
             
         except sqlite3.Error as e:
             logger.error(f"Error updating generation rating: {str(e)}")
-            self.conn.rollback()
+            self.connection.rollback()
             raise DatabaseError("Failed to update rating") from e
 
     def delete_generation(self, generation_id: int):
@@ -491,7 +581,7 @@ class DatabaseManager:
                     "DELETE FROM generation_history WHERE id = ?",
                     (generation_id,)
                 )
-                self.conn.commit()
+                self.connection.commit()
                 logger.info(f"Deleted generation {generation_id}")
                 
                 # Return image path for cleanup
@@ -499,7 +589,7 @@ class DatabaseManager:
                 
         except sqlite3.Error as e:
             logger.error(f"Error deleting generation: {str(e)}")
-            self.conn.rollback()
+            self.connection.rollback()
             raise DatabaseError("Failed to delete generation") from e
 
     # Template Methods
@@ -530,14 +620,14 @@ class DatabaseManager:
             )
             
             template_id = self.cursor.lastrowid
-            self.conn.commit()
+            self.connection.commit()
             
             logger.info(f"Added template with ID: {template_id}")
             return template_id
             
         except sqlite3.Error as e:
             logger.error(f"Error adding template: {str(e)}")
-            self.conn.rollback()
+            self.connection.rollback()
             raise DatabaseError("Failed to add template") from e
             
     def update_template(self, template_id: int, template_text: str = None, variables: List[str] = None) -> bool:
@@ -577,7 +667,7 @@ class DatabaseManager:
             
             query = f"UPDATE prompt_history SET {', '.join(set_clauses)} WHERE id = ? AND is_template = 1"
             self.cursor.execute(query, params)
-            self.conn.commit()
+            self.connection.commit()
             
             if self.cursor.rowcount > 0:
                 logger.info(f"Updated template {template_id}")
@@ -588,7 +678,7 @@ class DatabaseManager:
                 
         except sqlite3.Error as e:
             logger.error(f"Error updating template {template_id}: {str(e)}")
-            self.conn.rollback()
+            self.connection.rollback()
             raise DatabaseError(f"Failed to update template {template_id}") from e
             
     def delete_template(self, template_id: int) -> bool:
@@ -606,7 +696,7 @@ class DatabaseManager:
                 (template_id,)
             )
             
-            self.conn.commit()
+            self.connection.commit()
             
             if self.cursor.rowcount > 0:
                 logger.info(f"Deleted template with ID: {template_id}")
@@ -617,7 +707,7 @@ class DatabaseManager:
                 
         except sqlite3.Error as e:
             logger.error(f"Error deleting template: {str(e)}")
-            self.conn.rollback()
+            self.connection.rollback()
             raise DatabaseError("Failed to delete template") from e
     
     def get_template_history(self, template_id: int = None, limit: int = None) -> List[Dict[str, Any]]:
@@ -690,76 +780,83 @@ class DatabaseManager:
             int: The ID of the variable
         """
         try:
-            now = datetime.now().isoformat()
+            self.ensure_connection()
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             values_json = json.dumps(values)
             
             # Check if variable already exists
-            self.cursor.execute("SELECT id FROM template_variables WHERE name = ?", (name,))
-            existing = self.cursor.fetchone()
+            self.cursor.execute(
+                "SELECT id FROM template_variables WHERE name = ?", 
+                (name,)
+            )
+            result = self.cursor.fetchone()
             
-            if existing:
+            if result:
                 # Update existing variable
+                variable_id = result[0]
                 self.cursor.execute(
                     """
-                    UPDATE template_variables SET value_list = ?, last_used = ? WHERE id = ?
-                    """,
-                    (values_json, now, existing['id'])
+                    UPDATE template_variables 
+                    SET value_list = ?, last_used = ?, usage_count = usage_count + 1 
+                    WHERE id = ?
+                    """, 
+                    (values_json, current_time, variable_id)
                 )
-                variable_id = existing['id']
-                logger.info(f"Updated existing template variable '{name}' (ID: {variable_id})")
             else:
                 # Insert new variable
                 self.cursor.execute(
                     """
                     INSERT INTO template_variables 
-                    (name, value_list, creation_date, last_used) 
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (name, values_json, now, now)
+                    (name, value_list, creation_date, last_used, usage_count) 
+                    VALUES (?, ?, ?, ?, ?)
+                    """, 
+                    (name, values_json, current_time, current_time, 1)
                 )
                 variable_id = self.cursor.lastrowid
-                logger.info(f"Added new template variable '{name}' (ID: {variable_id})")
-            
-            self.conn.commit()
+                
+            self.connection.commit()
             return variable_id
             
         except sqlite3.Error as e:
-            logger.error(f"Error adding template variable: {str(e)}")
-            self.conn.rollback()
-            raise DatabaseError("Failed to add template variable") from e
+            error_msg = f"Error adding template variable: {str(e)}"
+            logger.error(error_msg)
+            raise DatabaseError(error_msg)
     
-    def get_template_variables(self) -> List[Dict[str, Any]]:
-        """Get all template variables from the database.
+    def get_template_variables(self) -> List[TemplateVariable]:
+        """Get all template variables.
         
         Returns:
-            List[Dict[str, Any]]: List of template variable dictionaries
+            List[TemplateVariable]: List of template variables
         """
         try:
-            # Ensure connection is open
             self.ensure_connection()
-            
-            self.cursor.execute("SELECT * FROM template_variables ORDER BY name")
-            results = self.cursor.fetchall()
+            self.cursor.execute(
+                """
+                SELECT id, name, value_list, creation_date, last_used, usage_count 
+                FROM template_variables
+                ORDER BY usage_count DESC
+                """
+            )
+            rows = self.cursor.fetchall()
             
             variables = []
-            for row in results:
-                # Convert JSON string to Python object
-                values = json.loads(row['value_list']) if row['value_list'] else []
+            for row in rows:
+                variable = TemplateVariable(
+                    id=row[0],
+                    name=row[1],
+                    values=json.loads(row[2]),
+                    creation_date=row[3],
+                    last_used=row[4],
+                    usage_count=row[5]
+                )
+                variables.append(variable)
                 
-                variables.append({
-                    'id': row['id'],
-                    'name': row['name'],
-                    'values': values,
-                    'creation_date': row['creation_date'],
-                    'last_used': row['last_used'],
-                    'usage_count': row['usage_count']
-                })
-            
             return variables
             
         except sqlite3.Error as e:
-            logger.error(f"Error getting template variables: {str(e)}")
-            raise DatabaseError("Failed to get template variables") from e
+            error_msg = f"Error getting template variables: {str(e)}"
+            logger.error(error_msg)
+            raise DatabaseError(error_msg)
     
     def delete_template_variable(self, variable_id: int) -> bool:
         """Delete a template variable.
@@ -783,14 +880,14 @@ class DatabaseManager:
             self.cursor.execute("DELETE FROM template_variables WHERE id = ?", (variable_id,))
             
             # Commit the changes
-            self.conn.commit()
+            self.connection.commit()
             
             logger.info(f"Deleted template variable '{variable['name']}' (ID: {variable_id})")
             return True
             
         except sqlite3.Error as e:
             logger.error(f"Error deleting template variable: {str(e)}")
-            self.conn.rollback()
+            self.connection.rollback()
             raise DatabaseError("Failed to delete template variable") from e
 
     def get_usage_stats(self, days: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -804,70 +901,129 @@ class DatabaseManager:
         """
         try:
             self.ensure_connection()
-            cursor = self.conn.cursor()
             
-            if days:
-                # Get stats for the last N days
-                query = """
-                SELECT * FROM usage_stats 
-                WHERE date >= date('now', ?) 
-                ORDER BY date
-                """
-                cursor.execute(query, (f'-{days} days',))
-            else:
-                # Get all stats
-                query = "SELECT * FROM usage_stats ORDER BY date"
-                cursor.execute(query)
+            # First try with the new table name
+            try:
+                if days:
+                    # Get stats for the last N days
+                    query = """
+                    SELECT date, total_tokens, total_cost, generations_count 
+                    FROM usage_statistics 
+                    WHERE date >= date('now', ?) 
+                    ORDER BY date
+                    """
+                    self.cursor.execute(query, (f'-{days} days',))
+                else:
+                    # Get all stats
+                    query = """
+                    SELECT date, total_tokens, total_cost, generations_count 
+                    FROM usage_statistics 
+                    ORDER BY date
+                    """
+                    self.cursor.execute(query)
+                
+                # Fetch results
+                results = []
+                
+                for row in self.cursor.fetchall():
+                    results.append({
+                        'date': row[0],
+                        'total_tokens': row[1],
+                        'total_cost': row[2],
+                        'generations_count': row[3]
+                    })
+                
+                return results
             
-            # Fetch results
-            columns = [col[0] for col in cursor.description]
-            results = []
+            except sqlite3.OperationalError as e:
+                # If the new table doesn't exist, try the old table name
+                if "no such table: usage_statistics" in str(e):
+                    logger.warning("usage_statistics table not found, trying usage_stats")
+                    
+                    if days:
+                        # Get stats for the last N days
+                        query = """
+                        SELECT date, total_tokens, total_cost, generations_count 
+                        FROM usage_stats 
+                        WHERE date >= date('now', ?) 
+                        ORDER BY date
+                        """
+                        self.cursor.execute(query, (f'-{days} days',))
+                    else:
+                        # Get all stats
+                        query = """
+                        SELECT date, total_tokens, total_cost, generations_count 
+                        FROM usage_stats 
+                        ORDER BY date
+                        """
+                        self.cursor.execute(query)
+                    
+                    # Fetch results
+                    results = []
+                    
+                    for row in self.cursor.fetchall():
+                        results.append({
+                            'date': row[0],
+                            'total_tokens': row[1],
+                            'total_cost': row[2],
+                            'generations_count': row[3]
+                        })
+                    
+                    return results
+                else:
+                    # If it's a different error, re-raise it
+                    raise
             
-            for row in cursor.fetchall():
-                results.append(dict(zip(columns, row)))
-            
-            return results
-            
-        except Exception as e:
+        except sqlite3.Error as e:
             logger.error(f"Failed to get usage stats: {str(e)}")
-            raise DatabaseError("Failed to get usage statistics", {"error": str(e)})
+            raise DatabaseError(f"Failed to get usage statistics: {str(e)}")
         finally:
-            self.close()
+            # Don't close the connection here as it might be needed later
+            pass
     
-    def get_model_distribution(self) -> Dict[str, int]:
-        """Get distribution of generations by model.
+    def get_model_distribution(self) -> List[Tuple[str, int]]:
+        """
+        Get distribution of models used in generations.
         
         Returns:
-            Dictionary mapping model names to generation counts
+            List[Tuple[str, int]]: List of (model_name, count) tuples, sorted by count descending
         """
         try:
             self.ensure_connection()
-            cursor = self.conn.cursor()
             
-            # Get all generations with parameters
-            query = "SELECT parameters FROM generation_history"
-            cursor.execute(query)
+            # SQLite doesn't have json_extract by default in older versions
+            # Use a different approach to extract model from JSON
+            self.cursor.execute(
+                """
+                SELECT parameters, COUNT(*) as count
+                FROM generation_history
+                GROUP BY parameters
+                ORDER BY count DESC
+                """
+            )
             
-            # Process results manually
-            result = {}
-            for row in cursor.fetchall():
-                try:
-                    params = json.loads(row[0])
-                    model = params.get('model')
-                    if model:
-                        result[model] = result.get(model, 0) + 1
-                except (json.JSONDecodeError, TypeError):
-                    continue
+            model_counts = {}
             
-            # Sort by count (descending)
-            result = dict(sorted(result.items(), key=lambda x: x[1], reverse=True))
-            return result
+            for row in self.cursor.fetchall():
+                parameters = json.loads(row[0])
+                model = parameters.get('model', 'unknown')
+                count = row[1]
+                
+                if model in model_counts:
+                    model_counts[model] += count
+                else:
+                    model_counts[model] = count
             
-        except Exception as e:
-            logger.error(f"Failed to get model distribution: {str(e)}")
-            raise DatabaseError("Failed to get model distribution", {"error": str(e)})
-        finally:
-            self.close()
+            # Convert to list of tuples and sort by count
+            distribution = [(model, count) for model, count in model_counts.items()]
+            distribution.sort(key=lambda x: x[1], reverse=True)
+            
+            return distribution
+            
+        except sqlite3.Error as e:
+            error_msg = f"Error getting model distribution: {str(e)}"
+            logger.error(error_msg)
+            raise DatabaseError(error_msg)
     
     def get_size_distribution(self) -> Dict[str, int]:
         """Get distribution of generations by image size.
@@ -877,7 +1033,7 @@ class DatabaseManager:
         """
         try:
             self.ensure_connection()
-            cursor = self.conn.cursor()
+            cursor = self.connection.cursor()
             
             # Get all generations with parameters
             query = "SELECT parameters FROM generation_history"
@@ -902,4 +1058,239 @@ class DatabaseManager:
             logger.error(f"Failed to get size distribution: {str(e)}")
             raise DatabaseError("Failed to get size distribution", {"error": str(e)})
         finally:
-            self.close() 
+            self.close()
+
+    def save_template_variable(self, name: str, values: List[str]) -> int:
+        """Save a template variable to the database.
+        
+        Args:
+            name: The name of the template variable
+            values: List of possible values for the variable
+            
+        Returns:
+            int: The ID of the saved template variable
+        """
+        try:
+            self.ensure_connection()
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            values_json = json.dumps(values)
+            
+            # Check if variable already exists
+            self.cursor.execute(
+                "SELECT id FROM template_variables WHERE name = ?", 
+                (name,)
+            )
+            result = self.cursor.fetchone()
+            
+            if result:
+                # Update existing variable
+                variable_id = result[0]
+                self.cursor.execute(
+                    """
+                    UPDATE template_variables 
+                    SET value_list = ?, last_used = ?, usage_count = usage_count + 1 
+                    WHERE id = ?
+                    """, 
+                    (values_json, current_time, variable_id)
+                )
+            else:
+                # Insert new variable
+                self.cursor.execute(
+                    """
+                    INSERT INTO template_variables 
+                    (name, value_list, creation_date, last_used, usage_count) 
+                    VALUES (?, ?, ?, ?, ?)
+                    """, 
+                    (name, values_json, current_time, current_time, 1)
+                )
+                variable_id = self.cursor.lastrowid
+                
+            self.connection.commit()
+            return variable_id
+            
+        except sqlite3.Error as e:
+            error_msg = f"Error saving template variable: {str(e)}"
+            logger.error(error_msg)
+            raise DatabaseError(error_msg)
+    
+    def save_generation(
+        self,
+        prompt_id: int,
+        image_path: str,
+        parameters: Dict[str, Any],
+        token_usage: int,
+        cost: float,
+        user_rating: int = 0,
+        description: Optional[str] = None
+    ) -> int:
+        """Save a generation record to the database.
+
+        Args:
+            prompt_id: ID of the prompt used
+            image_path: Path to the generated image
+            parameters: Generation parameters (model, size, etc.)
+            token_usage: Number of tokens used
+            cost: Cost of the generation
+            user_rating: User rating (0-5)
+            description: Optional description
+
+        Returns:
+            int: ID of the saved generation
+        """
+        try:
+            # Ensure connection is open
+            self.ensure_connection()
+            current_time = datetime.now().isoformat()
+
+            # Insert generation record
+            self.cursor.execute(
+                """
+                INSERT INTO generation_history
+                (prompt_id, image_path, parameters, token_usage, cost, creation_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    prompt_id,
+                    image_path,
+                    json.dumps(parameters),
+                    token_usage,
+                    cost,
+                    current_time
+                )
+            )
+            generation_id = self.cursor.lastrowid
+
+            # Update usage stats
+            self.update_usage_stats(token_usage, cost)
+
+            self.connection.commit()
+            logger.info(f"Saved generation record (ID: {generation_id})")
+            return generation_id
+
+        except sqlite3.Error as e:
+            error_msg = f"Error saving generation: {str(e)}"
+            logger.error(error_msg)
+            self.connection.rollback()
+            raise DatabaseError(error_msg)
+
+    def get_generation_history(self, limit: int = 100) -> List[Dict]:
+        """
+        Get generation history.
+        
+        Args:
+            limit: Maximum number of records to return
+            
+        Returns:
+            List[Dict]: List of generation records
+        """
+        try:
+            self.ensure_connection()
+            # Use creation_date from DB but map it to generation_date in the result
+            self.cursor.execute(
+                """
+                SELECT 
+                    g.id, g.prompt_id, g.image_path, g.parameters, 
+                    g.token_usage, g.cost, g.creation_date,
+                    p.prompt_text
+                FROM generation_history g
+                JOIN prompt_history p ON g.prompt_id = p.id
+                ORDER BY g.creation_date DESC
+                LIMIT ?
+                """,
+                (limit,)
+            )
+            
+            rows = self.cursor.fetchall()
+            generations = []
+            
+            for row in rows:
+                generation = {
+                    'id': row[0],
+                    'prompt_id': row[1],
+                    'image_path': row[2],
+                    'parameters': json.loads(row[3]),
+                    'token_usage': row[4],
+                    'cost': row[5],
+                    'generation_date': row[6],  # Map creation_date from DB to generation_date for the model
+                    'prompt_text': row[7]
+                }
+                generations.append(generation)
+                
+            return generations
+            
+        except sqlite3.Error as e:
+            error_msg = f"Error getting generation history: {str(e)}"
+            logger.error(error_msg)
+            raise DatabaseError(error_msg)
+
+    def get_total_usage(self) -> Dict[str, Any]:
+        """Get total usage statistics.
+        
+        Returns:
+            Dictionary with total tokens, cost, days, and generations
+        """
+        try:
+            self.ensure_connection()
+            
+            # Try with the new table name first
+            try:
+                query = """
+                    SELECT SUM(total_tokens) as total_tokens, 
+                           SUM(total_cost) as total_cost,
+                           COUNT(*) as total_days,
+                           (SELECT COUNT(*) FROM generation_history) as total_generations
+                    FROM usage_statistics
+                """
+                self.cursor.execute(query)
+                result = self.cursor.fetchone()
+                
+                if result:
+                    return {
+                        "total_tokens": result[0] or 0,
+                        "total_cost": result[1] or 0,
+                        "total_days": result[2] or 0,
+                        "total_generations": result[3] or 0
+                    }
+                
+            except sqlite3.OperationalError as e:
+                # If the new table doesn't exist, try the old table name
+                if "no such table: usage_statistics" in str(e):
+                    logger.warning("usage_statistics table not found, trying usage_stats")
+                    
+                    query = """
+                        SELECT SUM(total_tokens) as total_tokens, 
+                               SUM(total_cost) as total_cost,
+                               COUNT(*) as total_days,
+                               (SELECT COUNT(*) FROM generation_history) as total_generations
+                        FROM usage_stats
+                    """
+                    self.cursor.execute(query)
+                    result = self.cursor.fetchone()
+                    
+                    if result:
+                        return {
+                            "total_tokens": result[0] or 0,
+                            "total_cost": result[1] or 0,
+                            "total_days": result[2] or 0,
+                            "total_generations": result[3] or 0
+                        }
+                else:
+                    # If it's a different error, re-raise it
+                    raise
+            
+            # If we get here, either both tables don't exist or they're empty
+            return {
+                "total_tokens": 0,
+                "total_cost": 0,
+                "total_days": 0,
+                "total_generations": 0
+            }
+            
+        except sqlite3.Error as e:
+            logger.error(f"Error getting total usage: {str(e)}")
+            return {
+                "total_tokens": 0,
+                "total_cost": 0,
+                "total_days": 0,
+                "total_generations": 0
+            } 

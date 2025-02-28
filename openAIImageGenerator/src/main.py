@@ -7,6 +7,7 @@ from pathlib import Path
 from .core.openai_client import OpenAIImageClient
 from .core.database import DatabaseManager
 from .core.file_manager import FileManager
+from .core.database_migration import migrate_database
 from .utils.settings_manager import SettingsManager
 from .utils.error_handler import ErrorHandler
 from .ui.main_window import MainWindow
@@ -32,8 +33,12 @@ def main():
         settings_manager = SettingsManager(config_dir)
         error_handler = ErrorHandler(config_dir / "errors")
         
+        # Run database migrations before initializing the database manager
+        db_path = config_dir / "database.sqlite"
+        migrate_database(db_path)
+        
         settings = settings_manager.get_settings()
-        db_manager = DatabaseManager(config_dir / "database.sqlite")
+        db_manager = DatabaseManager(db_path)
         file_manager = FileManager(Path(settings["output_dir"]))
         openai_client = OpenAIImageClient(settings["api_key"])
         

@@ -50,12 +50,22 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
 ### Project Structure 
 
 ### Technology Stack
-- Python 3.8+
+- Python 3.7+
 - Tkinter for GUI
 - OpenAI Python library
 - SQLite for prompt history storage
 - dotenv for environment variable management
 - pytest for automated testing
+- Pillow for image processing and manipulation
+- requests for API communication
+- python-dateutil for date handling
+- ttkthemes for enhanced UI themes
+- SpeechRecognition for voice-to-prompt functionality
+- opencv-python for advanced image processing
+- numpy for numerical operations
+- matplotlib for usage statistics visualization
+- pdfkit for PDF export capabilities
+- pyperclip for clipboard integration
 
 ### Database Structure
 - **prompt_history** table:
@@ -69,6 +79,8 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
   - average_rating: FLOAT
   - is_template: BOOLEAN
   - template_variables: TEXT (JSON string of variable names)
+  - version: INTEGER
+  - parent_id: INTEGER (for tracking prompt versions)
 
 - **template_variables** table:
   - id: INTEGER PRIMARY KEY
@@ -77,6 +89,7 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
   - creation_date: TIMESTAMP
   - last_used: TIMESTAMP
   - usage_count: INTEGER
+  - category: TEXT
 
 - **batch_generations** table:
   - id: INTEGER PRIMARY KEY
@@ -87,6 +100,9 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
   - completed_images: INTEGER
   - status: TEXT
   - variable_combinations: TEXT (JSON string of used combinations)
+  - priority: INTEGER
+  - error_count: INTEGER
+  - retry_count: INTEGER
 
 - **generation_history** table:
   - id: INTEGER PRIMARY KEY
@@ -99,13 +115,43 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
   - cost: FLOAT
   - user_rating: INTEGER
   - description: TEXT
+  - model: TEXT
+  - size: TEXT
+  - style: TEXT
+  - quality: TEXT
 
-- **usage_stats** table:
+- **usage_statistics** table:
   - id: INTEGER PRIMARY KEY
   - date: DATE
   - total_tokens: INTEGER
   - total_cost: FLOAT
   - generations_count: INTEGER
+  - model: TEXT
+
+- **tags** table:
+  - id: INTEGER PRIMARY KEY
+  - name: TEXT
+  - color: TEXT
+  - category: TEXT
+  - usage_count: INTEGER
+
+- **prompt_tags** table:
+  - id: INTEGER PRIMARY KEY
+  - prompt_id: INTEGER (foreign key to prompt_history)
+  - tag_id: INTEGER (foreign key to tags)
+
+- **user_preferences** table:
+  - id: INTEGER PRIMARY KEY
+  - key: TEXT
+  - value: TEXT
+  - category: TEXT
+  - last_updated: TIMESTAMP
+
+- **schema_version** table:
+  - id: INTEGER PRIMARY KEY
+  - version: INTEGER
+  - migration_date: TIMESTAMP
+  - description: TEXT
 
 ### Testing Implementation
 - Unit tests for all utility modules
@@ -145,6 +191,46 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
 - Prompt categorization and tagging system
 - AI-powered prompt generation based on themes or concepts
 - Learning system that improves suggestions based on user preferences
+- Support for DALL-E 3 HD and other upcoming model improvements
+- Integration with local LLMs for offline prompt enhancement
+- Image variation controls with fine-tuning parameters
+- Collaborative prompt library with sharing capabilities
+- Export to various formats including PDF portfolios
+- Custom UI themes and layout customization
+- Voice-to-prompt functionality using speech recognition
+- Mobile companion app for viewing and sharing generated images
+- Template cloning for faster workflow
+- Enhanced image viewing with zoom and scroll capabilities (Implemented)
+- Direct access to output folders from the application (Implemented)
+- Dynamic model selection based on API key capabilities
+- Real-time usage statistics display during generation
+
+## Upcoming Development (Next Release)
+### Enhanced Prompt Management
+- AI-assisted prompt refinement using GPT-4
+- Semantic tagging system for better organization
+- Prompt version history tracking
+- Community prompt templates integration
+
+### Advanced Generation Features
+- Multi-model comparison (generate same prompt with different models)
+- Style transfer between generated images
+- Outpainting and inpainting capabilities
+- Animation sequences from related images
+- Upscaling integration for higher resolution outputs
+
+### Improved User Experience
+- Customizable workspace layouts
+- Dark mode and theme support
+- Keyboard shortcuts for power users
+- Streamlined batch processing interface
+- Progress tracking for long-running operations
+
+### Integration Capabilities
+- Export to social media platforms
+- Integration with design tools (Photoshop, Figma)
+- API for third-party applications
+- Plugin system for community extensions
 
 ## Build Plan and Checkpoints
 
@@ -193,10 +279,14 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
 ### Phase 6: Prompt History and Management (Days 12-14)
 - [x] Implement prompt history view
 - [x] Add search/filter functionality
-- [ ] Create import/export features
+- [ ] Create import/export features for prompts (JSON/CSV)
 - [ ] Implement template prompt creation interface
 - [ ] Add variable collection management
 - [x] Add delete/clear functionality for prompts and generations
+- [ ] Add prompt tagging system
+- [ ] Implement prompt rating and sorting
+- [ ] Add template cloning functionality
+- [ ] Fix variable input validation and paste functionality
 **Checkpoint 6**: Test prompt management features
 
 ### Phase 7: Advanced Features and Refinement (Days 15-17)
@@ -205,8 +295,15 @@ A GUI application for generating images using OpenAI's DALL-E model, with prompt
 - [ ] Create template system with variable substitution
 - [ ] Implement rate-limited batch generation
 - [ ] Add batch generation queue and progress tracking
-- [ ] Implement parallel processing with rate limiting
-- **Checkpoint 7**: Verify advanced features
+- [x] Implement parallel processing with rate limiting
+- [ ] Add support for DALL-E 3 HD
+- [ ] Implement basic image editing capabilities
+- [ ] Add keyboard shortcuts for common operations
+- [x] Improve image display with zoom and scroll capabilities
+- [x] Add button to open output folder directly
+- [ ] Display real-time usage statistics during generation
+- [ ] Implement model selection dropdown
+**Checkpoint 7**: Verify advanced features
 
 ### Phase 8: Testing and Documentation (Days 18-20)
 - [x] Write unit tests for all modules

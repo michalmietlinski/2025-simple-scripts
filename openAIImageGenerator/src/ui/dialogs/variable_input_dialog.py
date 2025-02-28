@@ -129,6 +129,9 @@ class VariableInputDialog(tk.Toplevel):
             )
             combo.pack(side="left", fill="x", expand=True)
             
+            # Add right-click context menu for paste
+            self._add_context_menu(combo)
+            
             # Store reference to entry
             self.variable_entries[var_name] = combo
         
@@ -160,6 +163,54 @@ class VariableInputDialog(tk.Toplevel):
             command=self.destroy
         ).pack(side="right")
     
+    def _add_context_menu(self, widget):
+        """Add right-click context menu to widget.
+        
+        Args:
+            widget: Widget to add context menu to
+        """
+        context_menu = tk.Menu(widget, tearoff=0)
+        context_menu.add_command(label="Paste", command=lambda: self._paste_to_widget(widget))
+        
+        # Bind right-click to show context menu
+        widget.bind("<Button-3>", lambda e: self._show_context_menu(e, context_menu))
+        
+        # Also bind Ctrl+V for paste
+        widget.bind("<Control-v>", lambda e: self._paste_to_widget(widget))
+    
+    def _show_context_menu(self, event, menu):
+        """Show context menu at event position.
+        
+        Args:
+            event: Event that triggered context menu
+            menu: Context menu to show
+        """
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+    
+    def _paste_to_widget(self, widget):
+        """Paste clipboard content to widget.
+        
+        Args:
+            widget: Widget to paste to
+        """
+        try:
+            # Get clipboard content
+            clipboard = self.clipboard_get()
+            
+            # Insert at cursor position or replace selection
+            if isinstance(widget, ttk.Combobox):
+                widget.set(clipboard)
+            else:
+                widget.insert(tk.INSERT, clipboard)
+                
+            logger.debug("Pasted from clipboard")
+            
+        except Exception as e:
+            logger.error(f"Failed to paste from clipboard: {str(e)}")
+    
     @handle_errors()
     def _load_variable_data(self):
         """Load variable data from database."""
@@ -187,10 +238,24 @@ class VariableInputDialog(tk.Toplevel):
         try:
             # Get variable values
             values = {}
+            missing_variables = []
+            
             for var_name, var in self.variable_values.items():
                 value = var.get().strip()
                 if value:
                     values[var_name] = value
+                else:
+                    missing_variables.append(var_name)
+            
+            # Check if any variables are missing and random values are not enabled
+            if missing_variables and not self.use_random_var.get():
+                missing_vars_str = ", ".join(missing_variables)
+                if not messagebox.askyesno(
+                    "Missing Variables",
+                    f"The following variables have no values: {missing_vars_str}\n\n"
+                    "Do you want to continue with empty values?"
+                ):
+                    return
             
             # Import here to avoid circular imports
             from ...utils.template_utils import TemplateProcessor
@@ -202,6 +267,14 @@ class VariableInputDialog(tk.Toplevel):
                 values,
                 self.use_random_var.get()
             )
+            
+            # Validate that all variables were substituted
+            if "{{" in processed_text and "}}" in processed_text:
+                if not messagebox.askyesno(
+                    "Unresolved Variables",
+                    "Some variables could not be resolved. Do you want to continue anyway?"
+                ):
+                    return
             
             # Call callback
             self.on_submit(processed_text)

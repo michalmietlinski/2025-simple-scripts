@@ -240,19 +240,48 @@ class FileManager:
         """Delete an image file.
         
         Args:
-            relative_path: Path relative to output directory
+            relative_path: Relative path to the image file
         """
         try:
-            abs_path = self.get_image_path(relative_path)
-            if os.path.exists(abs_path):
-                os.remove(abs_path)
-                logger.info(f"Deleted image: {relative_path}")
-                
-                # Try to remove empty parent directory
-                parent_dir = os.path.dirname(abs_path)
-                if not os.listdir(parent_dir):
-                    os.rmdir(parent_dir)
-                    logger.info(f"Removed empty directory: {parent_dir}")
+            full_path = self.output_dir / relative_path
+            if full_path.exists():
+                full_path.unlink()
+                logger.info(f"Deleted image: {full_path}")
+            else:
+                logger.warning(f"Image not found for deletion: {full_path}")
         except Exception as e:
             logger.error(f"Failed to delete image: {str(e)}")
-            raise 
+            raise
+    
+    def open_output_folder(self):
+        """Open the output folder in the system file explorer.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Ensure the directory exists
+            self.ensure_directories()
+            
+            # Get absolute path
+            abs_path = self.output_dir.absolute()
+            
+            # Open folder based on platform
+            import subprocess
+            import platform
+            
+            system = platform.system()
+            
+            if system == 'Windows':
+                os.startfile(abs_path)
+            elif system == 'Darwin':  # macOS
+                subprocess.call(['open', abs_path])
+            else:  # Linux and other Unix-like
+                subprocess.call(['xdg-open', abs_path])
+                
+            logger.info(f"Opened output folder: {abs_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to open output folder: {str(e)}")
+            return False 

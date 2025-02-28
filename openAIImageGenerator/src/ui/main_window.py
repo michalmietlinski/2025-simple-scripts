@@ -164,13 +164,20 @@ class MainWindow:
             font=("Arial", 16, "bold")
         ).pack(side="left")
         
+        # Button to open output folder
+        ttk.Button(
+            header,
+            text="Open Output Folder",
+            command=self._open_output_folder
+        ).pack(side="right", padx=(0, 10))
+        
         # API status indicator
-        self.api_status = tk.Label(
+        self.api_status_label = tk.Label(
             header,
             text="Checking API status...",
             font=("Arial", 10)
         )
-        self.api_status.pack(side="right")
+        self.api_status_label.pack(side="right")
         self.root.after(100, self._update_api_status)
         
         # Notebook for tabs
@@ -214,20 +221,16 @@ class MainWindow:
         logger.debug("Status bar created")
     
     def _update_api_status(self):
-        """Update API connection status."""
+        """Update the API status label after a short delay."""
         try:
-            # Check API key in background
-            threading.Thread(
-                target=self._verify_api_key,
-                daemon=True
-            ).start()
-            
+            is_valid = self.openai_client.validate_api_key()
+            if is_valid:
+                self.api_status_label.config(text="API: Connected", foreground="green")
+            else:
+                self.api_status_label.config(text="API: Invalid Key", foreground="red")
         except Exception as e:
-            self.api_status.config(
-                text="API: Error ✗",
-                fg="red"
-            )
-            logger.error(f"API status check failed: {str(e)}")
+            self.api_status_label.config(text="API: Error", foreground="red")
+            logger.error(f"Error validating API key: {e}")
     
     @handle_errors()
     def _handle_generation(self, prompt: str, settings: Dict[str, Any]):
@@ -296,24 +299,24 @@ class MainWindow:
     
     @handle_errors()
     def _verify_api_key(self):
-        """Verify API key functionality."""
+        """Verify the API key and update status."""
         try:
             if self.openai_client.validate_api_key():
-                self.api_status.config(
+                self.api_status_label.config(
                     text="API: Connected ✓",
-                    fg="green"
+                    foreground="green"
                 )
             else:
-                self.api_status.config(
+                self.api_status_label.config(
                     text="API: Invalid Key ✗",
-                    fg="red"
+                    foreground="red"
                 )
         except Exception as e:
-            self.api_status.config(
+            self.api_status_label.config(
                 text="API: Error ✗",
-                fg="red"
+                foreground="red"
             )
-            logger.error(f"API status check failed: {str(e)}")
+            logger.error(f"API key validation failed: {str(e)}")
     
     @handle_errors()
     def _cleanup_files(self):
@@ -401,9 +404,16 @@ class MainWindow:
         )
     
     def _show_error_reports(self):
-        """Show error report viewer dialog."""
-        viewer = ErrorReportViewer(self.root, self.error_handler)
-        viewer.focus()
+        """Show error reports dialog."""
+        ErrorReportViewer(self.root, self.error_handler)
+    
+    def _open_output_folder(self):
+        """Open the output folder in the system file explorer."""
+        try:
+            self.file_manager.open_output_folder()
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open output folder: {str(e)}")
+            logger.error(f"Error opening output folder: {e}")
     
     def set_status(self, message: str):
         """Update status bar message.

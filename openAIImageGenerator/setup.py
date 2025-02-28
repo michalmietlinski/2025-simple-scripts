@@ -17,6 +17,21 @@ setup(
             "pytest-mock>=3.10.0",
             "pytest-cov>=4.1.0",
         ],
+        "ui": [
+            "ttkthemes>=3.2.0",
+            "pyperclip>=1.8.2",
+        ],
+        "image": [
+            "opencv-python>=4.5.0",
+            "numpy>=1.20.0",
+        ],
+        "export": [
+            "matplotlib>=3.5.0",
+            "pdfkit>=1.0.0",
+        ],
+        "voice": [
+            "SpeechRecognition>=3.8.0",
+        ],
     },
     entry_points={
         'console_scripts': [

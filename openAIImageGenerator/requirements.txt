@@ -13,4 +13,21 @@ python-dateutil>=2.8.2
 # Testing
 pytest>=7.0.0
 pytest-mock>=3.10.0
-pytest-cov>=4.1.0 
+pytest-cov>=4.1.0
+
+# UI Enhancements
+ttkthemes>=3.2.0
+pyperclip>=1.8.2
+
+# Image Processing
+opencv-python>=4.5.0
+numpy>=1.20.0
+
+# Data Visualization
+matplotlib>=3.5.0
+
+# Export Capabilities
+pdfkit>=1.0.0
+
+# Voice Recognition (Optional)
+# SpeechRecognition>=3.8.0 

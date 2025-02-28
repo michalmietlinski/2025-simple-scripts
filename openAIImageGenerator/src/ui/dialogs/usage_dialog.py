@@ -284,6 +284,7 @@ class UsageDialog(tk.Toplevel):
         # Display model distribution
         if model_dist:
             total_models = sum(model_dist.values())
+            
             for i, (model, count) in enumerate(model_dist.items()):
                 percentage = (count / total_models) * 100
                 

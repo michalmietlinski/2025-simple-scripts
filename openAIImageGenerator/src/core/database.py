@@ -629,6 +629,62 @@ class DatabaseManager:
             logger.error(f"Error adding template: {str(e)}")
             self.connection.rollback()
             raise DatabaseError("Failed to add template") from e
+    
+    def clone_template(self, template_id: int) -> int:
+        """Clone an existing template.
+        
+        Args:
+            template_id: The ID of the template to clone
+            
+        Returns:
+            int: The ID of the newly created template clone
+        """
+        try:
+            # Get the template to clone
+            self.cursor.execute(
+                """
+                SELECT prompt_text, template_variables
+                FROM prompt_history
+                WHERE id = ? AND is_template = 1
+                """,
+                (template_id,)
+            )
+            
+            row = self.cursor.fetchone()
+            if not row:
+                logger.warning(f"No template found with ID {template_id}")
+                raise DatabaseError(f"Template with ID {template_id} not found")
+            
+            template_text, variables_json = row
+            
+            # Parse variables
+            variables = json.loads(variables_json) if variables_json else []
+            
+            # Create a new template with the same content
+            now = datetime.now().isoformat()
+            
+            # Add "Copy" to the template name
+            template_text = f"{template_text} (Copy)"
+            
+            self.cursor.execute(
+                """
+                INSERT INTO prompt_history 
+                (prompt_text, template_variables, creation_date, last_used, is_template) 
+                VALUES (?, ?, ?, ?, 1)
+                """,
+                (template_text, variables_json, now, now)
+            )
+            
+            new_template_id = self.cursor.lastrowid
+            self.connection.commit()
+            
+            logger.info(f"Cloned template {template_id} to new template {new_template_id}")
+            return new_template_id
+            
+        except sqlite3.Error as e:
+            logger.error(f"Error cloning template {template_id}: {str(e)}")
+            self.connection.rollback()
+            raise DatabaseError(f"Failed to clone template {template_id}") from e
             
     def update_template(self, template_id: int, template_text: str = None, variables: List[str] = None) -> bool:
         """Update an existing template.

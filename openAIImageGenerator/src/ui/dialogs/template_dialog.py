@@ -94,6 +94,12 @@ class TemplateDialog(tk.Toplevel):
         
         ttk.Button(
             controls_frame,
+            text="Clone",
+            command=self._clone_template
+        ).pack(side="left", padx=5)
+        
+        ttk.Button(
+            controls_frame,
             text="Refresh",
             command=self._load_templates
         ).pack(side="right", padx=5)
@@ -458,4 +464,38 @@ class TemplateDialog(tk.Toplevel):
             messagebox.showerror(
                 "Error",
                 "Failed to use template."
+            )
+
+    @handle_errors()
+    def _clone_template(self):
+        """Clone current template."""
+        if not self.current_template_id:
+            messagebox.showinfo(
+                "Info",
+                "No template selected."
+            )
+            return
+        
+        try:
+            # Clone template
+            new_template_id = self.db_manager.clone_template(self.current_template_id)
+            
+            if new_template_id:
+                messagebox.showinfo(
+                    "Success",
+                    "Template cloned successfully."
+                )
+                
+                # Refresh templates
+                self._load_templates()
+            else:
+                raise ValidationError("Failed to clone template")
+            
+        except ValidationError as e:
+            messagebox.showerror("Validation Error", str(e))
+        except Exception as e:
+            logger.error(f"Failed to clone template: {str(e)}")
+            messagebox.showerror(
+                "Error",
+                "Failed to clone template."
             ) 

@@ -62,13 +62,17 @@ class HistoryTab(ttk.Frame):
         )
         table_frame.pack(side="left", fill="both", expand=True)
         
+        # Table container to hold treeview and pagination
+        table_container = ttk.Frame(table_frame)
+        table_container.pack(fill="both", expand=True)
+        
         # Create treeview
         columns = (
             "date", "prompt", "size", "quality",
             "style", "rating", "tokens"
         )
         self.tree = ttk.Treeview(
-            table_frame,
+            table_container,
             columns=columns,
             show="headings",
             selectmode="browse"
@@ -93,7 +97,7 @@ class HistoryTab(ttk.Frame):
         
         # Add scrollbar
         scrollbar = ttk.Scrollbar(
-            table_frame,
+            table_container,
             orient="vertical",
             command=self.tree.yview
         )
@@ -106,6 +110,30 @@ class HistoryTab(ttk.Frame):
         # Bind selection event
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
         
+        # Pagination controls below the table
+        pagination_frame = ttk.Frame(table_frame)
+        pagination_frame.pack(fill="x", pady=(10, 5), side="bottom")
+        
+        self.prev_button = ttk.Button(
+            pagination_frame,
+            text="Previous",
+            command=self._prev_page
+        )
+        self.prev_button.pack(side="left")
+        
+        self.page_info = ttk.Label(
+            pagination_frame,
+            text="Page 1"
+        )
+        self.page_info.pack(side="left", padx=10)
+        
+        self.next_button = ttk.Button(
+            pagination_frame,
+            text="Next",
+            command=self._next_page
+        )
+        self.next_button.pack(side="left")
+        
         # Right side - Preview
         preview_frame = ttk.LabelFrame(
             main_frame,
@@ -114,9 +142,67 @@ class HistoryTab(ttk.Frame):
         )
         preview_frame.pack(side="right", fill="both", expand=True, padx=(10, 0))
         
-        # Preview image
-        self.preview_label = ttk.Label(preview_frame)
-        self.preview_label.pack(fill="both", expand=True)
+        # Preview image with zoom controls
+        preview_controls = ttk.Frame(preview_frame)
+        preview_controls.pack(fill="x", pady=(0, 5))
+        
+        ttk.Button(
+            preview_controls,
+            text="Zoom In",
+            command=self._zoom_in
+        ).pack(side="left", padx=5)
+        
+        ttk.Button(
+            preview_controls,
+            text="Zoom Out",
+            command=self._zoom_out
+        ).pack(side="left", padx=5)
+        
+        ttk.Button(
+            preview_controls,
+            text="Fit",
+            command=self._zoom_fit
+        ).pack(side="left", padx=5)
+        
+        # Create canvas for image display with scrollbars
+        canvas_frame = ttk.Frame(preview_frame)
+        canvas_frame.pack(fill="both", expand=True)
+        
+        self.canvas = tk.Canvas(
+            canvas_frame,
+            bg="#f0f0f0",
+            highlightthickness=0
+        )
+        
+        h_scrollbar = ttk.Scrollbar(
+            canvas_frame,
+            orient="horizontal",
+            command=self.canvas.xview
+        )
+        v_scrollbar = ttk.Scrollbar(
+            canvas_frame,
+            orient="vertical",
+            command=self.canvas.yview
+        )
+        
+        self.canvas.config(
+            xscrollcommand=h_scrollbar.set,
+            yscrollcommand=v_scrollbar.set
+        )
+        
+        # Pack canvas and scrollbars
+        self.canvas.grid(row=0, column=0, sticky="nsew")
+        h_scrollbar.grid(row=1, column=0, sticky="ew")
+        v_scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # Configure grid weights
+        canvas_frame.grid_rowconfigure(0, weight=1)
+        canvas_frame.grid_columnconfigure(0, weight=1)
+        
+        # Initialize zoom level
+        self.zoom_level = 1.0
+        self.current_image = None
+        self.canvas_image_id = None
         
         # Details section
         details_frame = ttk.Frame(preview_frame)
@@ -159,42 +245,38 @@ class HistoryTab(ttk.Frame):
             style="Danger.TButton"
         ).pack(side="left", padx=5)
         
-        # Pagination
-        pagination_frame = ttk.Frame(table_frame)
-        pagination_frame.pack(fill="x", pady=(10, 0))
-        
-        self.prev_button = ttk.Button(
-            pagination_frame,
-            text="Previous",
-            command=self._prev_page
-        )
-        self.prev_button.pack(side="left")
-        
-        self.page_info = ttk.Label(
-            pagination_frame,
-            text="Page 1"
-        )
-        self.page_info.pack(side="left", padx=10)
-        
-        self.next_button = ttk.Button(
-            pagination_frame,
-            text="Next",
-            command=self._next_page
-        )
-        self.next_button.pack(side="left")
-        
         # Set placeholder
         self._set_placeholder_preview()
     
     def _set_placeholder_preview(self):
         """Set placeholder preview image."""
         placeholder = Image.new('RGB', (512, 512), color='#f0f0f0')
+        self.current_image = placeholder
         self.preview_image = ImageTk.PhotoImage(placeholder)
-        self.preview_label.config(
-            image=self.preview_image,
+        
+        # Clear any existing image
+        self.canvas.delete("all")
+        
+        # Create text on canvas
+        self.canvas.create_text(
+            256, 256,
             text="Select an image to preview",
-            compound="center"
+            font=("Arial", 12),
+            fill="#666666"
         )
+        
+        # Create image on canvas
+        self.canvas_image_id = self.canvas.create_image(
+            0, 0,
+            anchor="nw",
+            image=self.preview_image
+        )
+        
+        # Reset zoom level
+        self.zoom_level = 1.0
+        
+        # Configure canvas scrollregion
+        self.canvas.config(scrollregion=self.canvas.bbox("all"))
     
     @handle_errors()
     def _load_history(self):
@@ -260,20 +342,18 @@ class HistoryTab(ttk.Frame):
             generation = self.db_manager.get_generation(gen_id)
             
             if generation and generation.image_path:
-                # Load and display image
+                # Load image
                 image_path = self.file_manager.get_image_path(generation.image_path)
                 image = Image.open(image_path)
                 
-                # Resize for preview
-                preview_size = (512, 512)
-                image.thumbnail(preview_size, Image.Resampling.LANCZOS)
+                # Store original image
+                self.current_image = image
                 
-                # Update preview
-                self.preview_image = ImageTk.PhotoImage(image)
-                self.preview_label.config(
-                    image=self.preview_image,
-                    text=""
-                )
+                # Reset zoom level
+                self.zoom_level = 1.0
+                
+                # Update image display
+                self._update_image()
                 
                 # Update rating
                 self.rating_var.set(str(generation.user_rating))
@@ -395,4 +475,43 @@ class HistoryTab(ttk.Frame):
             state="normal" 
             if (self.current_page + 1) * self.page_size < self.total_items 
             else "disabled"
-        ) 
+        )
+
+    def _zoom_in(self):
+        """Zoom in on the image."""
+        self.zoom_level *= 1.2
+        self._update_image()
+
+    def _zoom_out(self):
+        """Zoom out on the image."""
+        self.zoom_level /= 1.2
+        self._update_image()
+
+    def _zoom_fit(self):
+        """Fit the image to the canvas."""
+        self.zoom_level = 1.0
+        self._update_image()
+
+    def _update_image(self):
+        """Update the image on the canvas based on the current zoom level."""
+        if self.current_image:
+            self.canvas.delete(self.canvas_image_id)
+
+            # Resize the image based on the zoom level
+            width = int(self.current_image.width * self.zoom_level)
+            height = int(self.current_image.height * self.zoom_level)
+            resized_image = self.current_image.resize((width, height), Image.Resampling.LANCZOS)
+
+            # Convert the resized image to a PhotoImage
+            self.preview_image = ImageTk.PhotoImage(resized_image)
+
+            # Create an image ID for the canvas
+            self.canvas_image_id = self.canvas.create_image(0, 0, anchor="nw", image=self.preview_image)
+
+            # Configure canvas scrollbars
+            self.canvas.config(scrollregion=self.canvas.bbox(self.canvas_image_id))
+
+    def _set_image(self, image):
+        """Set the image to be displayed in the canvas."""
+        self.current_image = image
+        self._update_image()

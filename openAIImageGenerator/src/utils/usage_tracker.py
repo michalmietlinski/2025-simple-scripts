@@ -125,12 +125,16 @@ class UsageTracker:
         }
     
     def get_model_distribution(self) -> Dict[str, int]:
-        """Get distribution of generations by model.
+        """Get distribution of models used in generations.
         
         Returns:
             Dictionary mapping model names to generation counts
         """
-        return self.db_manager.get_model_distribution()
+        # Get the list of tuples from the database
+        model_tuples = self.db_manager.get_model_distribution()
+        
+        # Convert to dictionary
+        return dict(model_tuples)
     
     def get_size_distribution(self) -> Dict[str, int]:
         """Get distribution of generations by image size.

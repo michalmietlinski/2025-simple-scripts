@@ -1,0 +1,59 @@
+{
+  "name": "json-bason",
+  "version": "0.1.0",
+  "description": "JSON-based AI image generator with support for multiple providers",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "json-bason": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "generate": "node dist/index.js",
+    "lint": "eslint src/**/*.ts",
+    "test": "jest",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "ai",
+    "image-generation",
+    "dall-e",
+    "midjourney",
+    "stable-diffusion",
+    "json",
+    "batch-processing"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "dotenv": "^16.3.1",
+    "fs-extra": "^11.2.0",
+    "joi": "^17.11.0",
+    "lodash": "^4.17.21",
+    "openai": "^4.20.1",
+    "ora": "^5.4.1",
+    "p-limit": "^3.1.0",
+    "p-retry": "^4.6.2",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/jest": "^29.5.10",
+    "@types/joi": "^17.2.3",
+    "@types/lodash": "^4.14.202",
+    "@types/node": "^20.17.23",
+    "@types/ora": "^3.2.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "eslint": "^8.54.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
+  }
+}

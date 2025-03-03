@@ -1,0 +1,88 @@
+{
+  // Directory where generated images will be saved
+  "output_directory": "./output",
+  // Default settings for all image generations
+  "defaults":   {
+    // AI model to use for generation (dall-e-3, midjourney, stable-diffusion-xl)
+    "model": "dall-e-3",
+    // Image quality (standard, hd) - DALL-E 3 specific
+    "quality": "standard",
+    // Image size (1024x1024, 1024x1792, 1792x1024) - DALL-E 3 specific
+    "size": "1024x1024",
+    // Image style (vivid, natural) - DALL-E 3 specific
+    "style": "vivid",
+    // Response format (url, b64_json) - DALL-E 3 specific
+    "response_format": "url",
+    // Number of images to generate per prompt - DALL-E 3 specific
+    "n": 1,
+    // Batch processing settings
+    "batch":   {
+      // Number of concurrent API requests
+      "concurrency": 2,
+      // Maximum requests per minute
+      "rate_limit_rpm": 10,
+      // Settings for retrying failed requests
+      "retries":   {
+        // Maximum number of retry attempts
+        "attempts": 3,
+        // Initial delay before first retry (milliseconds)
+        "initial_delay_ms": 1000,
+        // Maximum delay between retries (milliseconds)
+        "max_delay_ms": 10000,
+        // Whether to use exponential backoff for retries
+        "exponential_backoff": true
+      }
+    },
+    // Output settings
+    "output":   {
+      // Directory structure (flat, date, batch, category)
+      "directory_structure": "date",
+      // Template for filenames with variables in {curly_braces}
+      "filename_template": "{prompt_hash}_{timestamp}",
+      // Whether to save metadata JSON files with each image
+      "save_metadata": true,
+      // Whether to skip generating duplicate prompts
+      "deduplicate": true
+    }
+  },
+  // Post-processing scripts to apply to generated images
+  "post_processing": [
+    {
+      // Name of the post-processing script
+      "name": "resize",
+      // Parameters for the post-processing script
+      "params":   {
+        "width": 512,
+        "height": 512,
+        "fit": "contain"
+      }
+    }
+  ],
+  // List of image generation configurations
+  "images": [
+    {
+      // Template for the prompt with variables in {curly_braces}
+      "prompt_template": "A {color} {animal} in a {environment}",
+      // Variables to substitute in the prompt template
+      "variables":   {
+        "color": [
+          "red",
+          "blue",
+          "green"
+        ],
+        "animal": [
+          "cat",
+          "dog",
+          "bird"
+        ],
+        "environment": [
+          "forest",
+          "desert",
+          "ocean"
+        ]
+      },
+      // Template for the filename (overrides default)
+      "filename_template": "{color}_{animal}_{environment}"
+    }
+  ]
+}

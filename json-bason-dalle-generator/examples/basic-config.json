@@ -1,0 +1,44 @@
+{
+  "output_directory": "generated_images",
+  
+  "defaults": {
+    "model": "dall-e-3",
+    "quality": "standard",
+    "size": "1024x1024",
+    "style": "vivid",
+    "response_format": "url",
+    "n": 1,
+    "batch": {
+      "concurrency": 2,
+      "rate_limit_rpm": 50,
+      "retries": {
+        "attempts": 3,
+        "initial_delay_ms": 1000,
+        "max_delay_ms": 10000,
+        "exponential_backoff": true
+      }
+    },
+    "output": {
+      "directory_structure": "date",
+      "filename_template": "{timestamp}_{model}_{prompt_hash}",
+      "save_metadata": true,
+      "deduplicate": false
+    }
+  },
+  
+  "post_processing": [],
+  
+  "images": [
+    {
+      "prompt_template": "A {adjective} {subject} in {setting} with {lighting} lighting",
+      "variables": {
+        "adjective": ["beautiful", "mysterious", "serene"],
+        "subject": ["landscape", "portrait", "still life"],
+        "setting": ["mountains", "urban environment", "underwater scene"],
+        "lighting": ["dramatic", "soft", "natural"]
+      },
+      "size": "1792x1024",
+      "filename_template": "{adjective}_{subject}_{setting}"
+    }
+  ]
+} 

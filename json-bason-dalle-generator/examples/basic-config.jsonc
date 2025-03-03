@@ -1,0 +1,105 @@
+{
+  // Configuration for AI image generation
+  "output_directory": "generated_images",
+  
+  // Global defaults - can be overridden in individual image configs
+  "defaults": {
+    // Available models: dall-e-3, midjourney, stable-diffusion-xl
+    "model": "dall-e-3",
+    
+    // DALL-E 3 specific options
+    // Available qualities: 'standard' (faster, cheaper) or 'hd' (higher quality)
+    "quality": "standard",
+    
+    // Available sizes: '1024x1024' (square), '1024x1792' (portrait), '1792x1024' (landscape)
+    "size": "1024x1024",
+    
+    // Available styles: 'vivid' (hyper-real and dramatic) or 'natural' (more realistic)
+    "style": "vivid",
+    
+    // Response format: 'url' (temporary URL) or 'b64_json' (base64 encoded)
+    "response_format": "url",
+    
+    // Number of images to generate per prompt (1-10)
+    "n": 1,
+    
+    // Batch processing options
+    "batch": {
+      // Maximum number of concurrent requests
+      "concurrency": 2,
+      
+      // Rate limit in requests per minute (0 for unlimited)
+      "rate_limit_rpm": 50,
+      
+      // Retry options for failed requests
+      "retries": {
+        // Number of retry attempts
+        "attempts": 3,
+        
+        // Delay between retries in milliseconds
+        "initial_delay_ms": 1000,
+        
+        // Maximum delay between retries in milliseconds
+        "max_delay_ms": 10000,
+        
+        // Whether to use exponential backoff
+        "exponential_backoff": true
+      }
+    },
+    
+    // Output options
+    "output": {
+      // Directory structure: 'flat', 'date', 'batch', 'category'
+      "directory_structure": "date",
+      
+      // Filename template with variables
+      "filename_template": "{timestamp}_{model}_{prompt_hash}",
+      
+      // Whether to save metadata alongside images
+      "save_metadata": true,
+      
+      // Whether to deduplicate similar images
+      "deduplicate": false
+    }
+    
+    // Optional: Your OpenAI user ID for tracking
+    // "user": "your-user-id"
+  },
+  
+  // Post-processing scripts to run on generated images
+  "post_processing": [
+    // {
+    //   "name": "resize",
+    //   "params": {
+    //     "width": 512,
+    //     "height": 512
+    //   }
+    // }
+  ],
+  
+  // Array of image generation configurations
+  "images": [
+    {
+      // Template with variables in {curly_braces}
+      "prompt_template": "A {adjective} {subject} in {setting} with {lighting} lighting",
+      
+      // Variables to substitute in the template
+      "variables": {
+        "adjective": ["beautiful", "mysterious", "serene"],
+        "subject": ["landscape", "portrait", "still life"],
+        "setting": ["mountains", "urban environment", "underwater scene"],
+        "lighting": ["dramatic", "soft", "natural"]
+      },
+      
+      // Override any defaults for this specific image
+      "size": "1792x1024",
+      
+      // Optional: filename template for saving images
+      "filename_template": "{adjective}_{subject}_{setting}"
+      
+      // Optional: Override other parameters
+      // "quality": "hd",
+      // "style": "natural"
+    }
+  ]
+} 

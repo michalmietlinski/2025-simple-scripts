@@ -115,6 +115,7 @@ export interface GenerationResult {
   task: GenerationTask;
   success: boolean;
   image_path?: string;
+  image_paths?: string[];
   metadata_path?: string;
   error?: Error;
   retry_count?: number;

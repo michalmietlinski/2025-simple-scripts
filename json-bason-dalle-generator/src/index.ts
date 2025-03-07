@@ -19,6 +19,7 @@ import { OutputManager } from './output/manager';
 import { CostEstimator } from './cost/estimator';
 import { ProgressState } from './types';
 import { registerCommands } from './commands';
+import { getKey } from './commands/keys';
 
 // Define the program version
 const packageJson = require('../package.json');
@@ -32,7 +33,6 @@ program
   .description('JSON-based AI image generator')
   .version(version)
   .option('-c, --config <path>', 'Path to the configuration file', 'config.json')
-  .option('-k, --api-key <key>', 'OpenAI API key (overrides environment variable)')
   .option('-o, --output-dir <path>', 'Output directory (overrides config file)')
   .option('-d, --dry-run', 'Estimate cost without generating images', false)
   .option('-y, --yes', 'Skip confirmation prompts', false)
@@ -70,10 +70,14 @@ async function generateImages(options: any) {
     const outputDir = path.resolve(path.dirname(configPath), config.output_directory);
     await fs.ensureDir(outputDir);
     
-    // Get the API key
-    const apiKey = options.apiKey || process.env.OPENAI_API_KEY;
+    // Get the API key from stored keys or environment variable
+    const apiKey = await getKey('openai') || process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error('OpenAI API key not provided. Use --api-key option or set OPENAI_API_KEY environment variable.');
+      throw new Error(
+        'OpenAI API key not found. Please set it using one of these methods:\n' +
+        `1. Run ${chalk.cyan('json-bason keys set openai <your-key>')}\n` +
+        '2. Set the OPENAI_API_KEY environment variable'
+      );
     }
     
     // Create providers

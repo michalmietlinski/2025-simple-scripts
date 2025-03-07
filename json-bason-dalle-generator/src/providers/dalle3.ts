@@ -67,28 +67,40 @@ export class DallE3Provider implements Provider {
         throw new Error('No images generated');
       }
       
-      // Get the first image (we only support one image at a time for now)
-      const image = response.data[0];
+      // Process all generated images
+      const results = await Promise.all(response.data.map(async (image, index) => {
+        // Replace {index} in filename with actual index
+        const indexedFilename = task.output.filename.replace('{index}', (index + 1).toString());
+        
+        // Download the image if it's a URL
+        let imagePath: string | undefined;
+        if (image.url) {
+          imagePath = await this.downloadImage(image.url, task.output.directory, indexedFilename);
+        } else if (image.b64_json) {
+          imagePath = await this.saveBase64Image(image.b64_json, task.output.directory, indexedFilename);
+        }
+        
+        return {
+          imagePath,
+          image
+        };
+      }));
       
-      // Download the image if it's a URL
-      let imagePath: string | undefined;
-      if (image.url) {
-        imagePath = await this.downloadImage(image.url, task.output.directory, task.output.filename);
-      } else if (image.b64_json) {
-        imagePath = await this.saveBase64Image(image.b64_json, task.output.directory, task.output.filename);
-      }
+      // Get all image paths
+      const imagePaths = results.map(r => r.imagePath).filter(Boolean) as string[];
       
       // Save metadata if requested
       let metadataPath: string | undefined;
       if (task.output.save_metadata) {
-        metadataPath = await this.saveMetadata(response, task, imagePath);
+        metadataPath = await this.saveMetadata(response, task, imagePaths);
       }
       
       // Return the result
       return {
         task,
         success: true,
-        image_path: imagePath,
+        image_path: imagePaths[0], // For backward compatibility
+        image_paths: imagePaths,
         metadata_path: metadataPath,
         timestamp: new Date(),
         provider_response: response
@@ -259,13 +271,13 @@ export class DallE3Provider implements Provider {
    * Saves metadata for a generated image
    * @param response API response
    * @param task Generation task
-   * @param imagePath Path to the generated image
+   * @param imagePaths Paths to the generated images
    * @returns Path to the metadata file
    */
   private async saveMetadata(
     response: any, 
     task: GenerationTask, 
-    imagePath?: string
+    imagePaths: string[]
   ): Promise<string> {
     // Ensure the directory exists
     await fs.ensureDir(task.output.directory);
@@ -276,7 +288,7 @@ export class DallE3Provider implements Provider {
       prompt: task.prompt,
       variables: task.variables,
       options: task.options,
-      image_path: imagePath,
+      image_paths: imagePaths,
       response: {
         created: response.created,
         data: response.data.map((item: any) => ({

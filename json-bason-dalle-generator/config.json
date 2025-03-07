@@ -1,0 +1,50 @@
+{
+  "output_directory": "./output",
+  "defaults": {
+    "model": "dall-e-3",
+    "quality": "standard",
+    "size": "1024x1024",
+    "style": "vivid",
+    "response_format": "url",
+    "n": 3,
+    "batch": {
+      "concurrency": 2,
+      "rate_limit_rpm": 10,
+      "retries": {
+        "attempts": 3,
+        "initial_delay_ms": 1000,
+        "max_delay_ms": 10000,
+        "exponential_backoff": true
+      }
+    },
+    "output": {
+      "directory_structure": "date",
+      "filename_template": "{icon_name}_{timestamp}_{index}",
+      "save_metadata": true,
+      "deduplicate": true
+    }
+  },
+  "post_processing": [
+    {
+      "name": "resize",
+      "params": {
+        "width": 512,
+        "height": 512,
+        "fit": "contain"
+      }
+    }
+  ],
+  "images": [
+    {
+      "prompt_template": "Create a flat silhouette icon of {icon_name}. The design should be minimalistic, clean, and fully enclosed with sharp edges and clear lines. Use only basic geometric shapes (rectangles, circles, lines, and polygons) to ensure compatibility with SVG conversion and 3D printing. Avoid any gradients, brushes, fine details, or overlapping transparent elements, as these will not translate well to 3D prints. The icon should fit within a square canvas (with a consistent bounding box) and be centered to maintain proportion and uniformity across all icons. The design should be in black on a transparent or white background. Use a consistent stroke thickness (if any lines are used) and ensure all elements are fully connected to avoid floating parts in the 3D print. For icons with directional elements (e.g., arrows, stairs), ensure they are balanced and easily recognizable at small sizes. The final silhouette should be bold, clear, and optimized for practical use",
+      "variables": {
+        "icon_name": [
+          "car",
+		  "bicycle",
+		  "tree"
+        ]
+      },
+      "filename_template": "{icon_name}__{timestamp}_{index}"
+    }
+  ]
+}

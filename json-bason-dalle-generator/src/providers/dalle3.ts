@@ -53,6 +53,15 @@ export class DallE3Provider implements Provider {
       // DALL-E 3 only supports n=1, so we need to make multiple API calls
       const allImages = [];
       
+      // Variation hints to make each image more distinct
+      const variationHints = [
+        "", // First variation uses the original prompt
+        "Make this a different variation with unique details.",
+        "Create a completely different interpretation of this concept.",
+        "Design an alternative version with different styling.",
+        "Create a distinct variation with different composition."
+      ];
+      
       // Make n sequential API calls with n=1 to avoid rate limits
       for (let i = 0; i < n; i++) {
         // Add a delay between calls to respect rate limits
@@ -61,10 +70,14 @@ export class DallE3Provider implements Provider {
           await new Promise(resolve => setTimeout(resolve, 12000));
         }
         
+        // Create a variation of the prompt by adding a hint
+        const variationHint = i < variationHints.length ? variationHints[i] : variationHints[1];
+        const promptVariation = variationHint ? `${task.prompt} ${variationHint}` : task.prompt;
+        
         // Make the API call
         const response = await this.client.images.generate({
           model: 'dall-e-3',
-          prompt: task.prompt,
+          prompt: promptVariation,
           n: 1, // Always use n=1 for DALL-E 3
           quality: quality as DallE3Quality,
           response_format: response_format as 'url' | 'b64_json',
@@ -87,7 +100,14 @@ export class DallE3Provider implements Provider {
       // Process all generated images
       const results = await Promise.all(allImages.map(async (image, index) => {
         // Replace {index} in filename with actual index
-        const indexedFilename = task.output.filename.replace('{index}', (index + 1).toString());
+        // Ensure the index is always included in the filename
+        let indexedFilename = task.output.filename;
+        if (indexedFilename.includes('{index}')) {
+          indexedFilename = indexedFilename.replace(/\{index\}/g, (index + 1).toString());
+        } else {
+          // If {index} is not in the template, append it
+          indexedFilename = `${indexedFilename}_${index + 1}`;
+        }
         
         // Download the image if it's a URL
         let imagePath: string | undefined;
@@ -260,7 +280,14 @@ export class DallE3Provider implements Provider {
                       contentType === 'image/webp' ? 'webp' : 'png';
     
     // Create the output path
-    const outputPath = path.join(directory, `${filename}.${extension}`);
+    let outputPath = path.join(directory, `${filename}.${extension}`);
+    
+    // Check if the file already exists and add a unique suffix if needed
+    let counter = 1;
+    while (await fs.pathExists(outputPath)) {
+      outputPath = path.join(directory, `${filename}_${counter}.${extension}`);
+      counter++;
+    }
     
     // Save the image
     await fs.writeFile(outputPath, response.data);
@@ -280,7 +307,14 @@ export class DallE3Provider implements Provider {
     await fs.ensureDir(directory);
     
     // Create the output path
-    const outputPath = path.join(directory, `${filename}.png`);
+    let outputPath = path.join(directory, `${filename}.png`);
+    
+    // Check if the file already exists and add a unique suffix if needed
+    let counter = 1;
+    while (await fs.pathExists(outputPath)) {
+      outputPath = path.join(directory, `${filename}_${counter}.png`);
+      counter++;
+    }
     
     // Decode and save the image
     const buffer = Buffer.from(base64, 'base64');
@@ -322,7 +356,14 @@ export class DallE3Provider implements Provider {
     };
     
     // Create the output path
-    const outputPath = path.join(task.output.directory, `${task.output.filename}.json`);
+    let outputPath = path.join(task.output.directory, `${task.output.filename}.json`);
+    
+    // Check if the file already exists and add a unique suffix if needed
+    let counter = 1;
+    while (await fs.pathExists(outputPath)) {
+      outputPath = path.join(task.output.directory, `${task.output.filename}_${counter}.json`);
+      counter++;
+    }
     
     // Save the metadata
     await fs.writeJson(outputPath, metadata, { spaces: 2 });

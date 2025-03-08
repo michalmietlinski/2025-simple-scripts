@@ -39,7 +39,7 @@ export class BatchProcessor {
     this.batchConfig = batchConfig;
     this.statePath = statePath || path.join(process.cwd(), '.batch-state.json');
     
-    // Calculate total images based on n parameter
+    // Calculate total images based on n parameter for each task
     const totalImages = tasks.reduce((sum, task) => {
       // Get the number of variations per prompt
       const n = task.options.n || 1;

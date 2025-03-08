@@ -184,7 +184,8 @@ async function generateImages(options: any) {
     }
     
     // Process the batch
-    spinner = ora(`Generating ${tasks.length} tasks (${batchProcessor.getTotalImages()} images)`).start();
+    const totalImages = tasks.length * (config.defaults.n || 1);
+    spinner = ora(`Generating ${tasks.length} tasks (${totalImages} images)`).start();
     
     // Track progress
     let lastProgress = 0;
@@ -195,7 +196,7 @@ async function generateImages(options: any) {
       
       // Only update if progress has changed
       if (progress !== lastProgress) {
-        spinner!.text = `Generating images: ${progress}% (${state.completed_images}/${state.total_images})`;
+        spinner!.text = `Generating images: ${progress}% (${state.completed_images}/${totalImages})`;
         lastProgress = progress;
       }
     });
@@ -218,7 +219,7 @@ async function generateImages(options: any) {
     // Print summary
     console.log('\nGeneration Summary:');
     console.log(`- Total tasks: ${tasks.length}`);
-    console.log(`- Total images: ${batchProcessor.getTotalImages()}`);
+    console.log(`- Total images: ${totalImages}`);
     console.log(`- Images generated: ${totalImagesGenerated}`);
     console.log(`- Successful tasks: ${successes}`);
     console.log(`- Failed tasks: ${failures}`);

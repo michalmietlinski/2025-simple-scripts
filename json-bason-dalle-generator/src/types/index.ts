@@ -126,7 +126,9 @@ export interface GenerationResult {
 // Progress tracking
 export interface ProgressState {
   total_tasks: number;
+  total_images: number;  // Total number of images to generate
   completed_tasks: number;
+  completed_images: number;  // Number of images generated so far
   failed_tasks: number;
   in_progress_tasks: number;
   remaining_tasks: number;

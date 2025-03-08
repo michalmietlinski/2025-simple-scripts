@@ -50,25 +50,42 @@ export class DallE3Provider implements Provider {
         user
       } = task.options;
       
-      // Generate the image
-      const response = await this.client.images.generate({
-        model: 'dall-e-3',
-        prompt: task.prompt,
-        n,
-        quality: quality as DallE3Quality,
-        response_format: response_format as 'url' | 'b64_json',
-        size: size as DallE3Size,
-        style: style as 'vivid' | 'natural',
-        user
-      });
+      // DALL-E 3 only supports n=1, so we need to make multiple API calls
+      const allImages = [];
+      
+      // Make n sequential API calls with n=1 to avoid rate limits
+      for (let i = 0; i < n; i++) {
+        // Add a delay between calls to respect rate limits
+        if (i > 0) {
+          // Wait 12 seconds between calls (5 per minute = 12 seconds per call)
+          await new Promise(resolve => setTimeout(resolve, 12000));
+        }
+        
+        // Make the API call
+        const response = await this.client.images.generate({
+          model: 'dall-e-3',
+          prompt: task.prompt,
+          n: 1, // Always use n=1 for DALL-E 3
+          quality: quality as DallE3Quality,
+          response_format: response_format as 'url' | 'b64_json',
+          size: size as DallE3Size,
+          style: style as 'vivid' | 'natural',
+          user
+        });
+        
+        // Add the image to our collection
+        if (response.data && response.data.length > 0) {
+          allImages.push(...response.data);
+        }
+      }
       
       // Ensure we have at least one image
-      if (!response.data || response.data.length === 0) {
+      if (allImages.length === 0) {
         throw new Error('No images generated');
       }
       
       // Process all generated images
-      const results = await Promise.all(response.data.map(async (image, index) => {
+      const results = await Promise.all(allImages.map(async (image, index) => {
         // Replace {index} in filename with actual index
         const indexedFilename = task.output.filename.replace('{index}', (index + 1).toString());
         
@@ -92,7 +109,12 @@ export class DallE3Provider implements Provider {
       // Save metadata if requested
       let metadataPath: string | undefined;
       if (task.output.save_metadata) {
-        metadataPath = await this.saveMetadata(response, task, imagePaths);
+        // Create a combined response for metadata
+        const combinedResponse = {
+          created: new Date().toISOString(),
+          data: allImages
+        };
+        metadataPath = await this.saveMetadata(combinedResponse, task, imagePaths);
       }
       
       // Return the result
@@ -103,7 +125,7 @@ export class DallE3Provider implements Provider {
         image_paths: imagePaths,
         metadata_path: metadataPath,
         timestamp: new Date(),
-        provider_response: response
+        provider_response: { data: allImages }
       };
     } catch (error) {
       // Handle errors

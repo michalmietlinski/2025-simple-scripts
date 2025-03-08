@@ -14,7 +14,7 @@
     // Response format (url, b64_json) - DALL-E 3 specific
     "response_format": "url",
     // Number of images to generate per prompt - DALL-E 3 specific
-    "n": 1,
+    "n": 3,
     // Batch processing settings
     "batch":   {
       // Number of concurrent API requests
@@ -38,7 +38,7 @@
       // Directory structure (flat, date, batch, category)
       "directory_structure": "date",
       // Template for filenames with variables in {curly_braces}
-      "filename_template": "{prompt_hash}_{timestamp}",
+      "filename_template": "{prompt_hash}_{timestamp}_{index}",
       // Whether to save metadata JSON files with each image
       "save_metadata": true,
       // Whether to skip generating duplicate prompts
@@ -82,7 +82,7 @@
         ]
       },
       // Template for the filename (overrides default)
-      "filename_template": "{color}_{animal}_{environment}"
+      "filename_template": "{color}_{animal}_{environment}_{index}"
     }
   ]
 }

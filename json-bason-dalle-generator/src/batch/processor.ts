@@ -39,10 +39,19 @@ export class BatchProcessor {
     this.batchConfig = batchConfig;
     this.statePath = statePath || path.join(process.cwd(), '.batch-state.json');
     
+    // Calculate total images based on n parameter
+    const totalImages = tasks.reduce((sum, task) => {
+      // Get the number of variations per prompt
+      const n = task.options.n || 1;
+      return sum + n;
+    }, 0);
+    
     // Initialize progress state
     this.progressState = {
       total_tasks: tasks.length,
+      total_images: totalImages,
       completed_tasks: 0,
+      completed_images: 0,
       failed_tasks: 0,
       in_progress_tasks: 0,
       remaining_tasks: tasks.length,
@@ -60,7 +69,9 @@ export class BatchProcessor {
    */
   async process(onProgress?: (state: ProgressState) => void): Promise<GenerationResult[]> {
     // Try to load existing state if available
-    await this.loadState();
+    if (this.statePath) {
+      await this.loadState();
+    }
     
     // Create a concurrency limiter
     const limit = pLimit(this.batchConfig.concurrency);
@@ -163,6 +174,8 @@ export class BatchProcessor {
       
       // Update progress state
       this.progressState.completed_tasks++;
+      // Update completed images count based on the number of images generated
+      this.progressState.completed_images += (result.image_paths?.length || (result.image_path ? 1 : 0));
       this.progressState.in_progress_tasks--;
       this.progressState.completed_results.push(result);
       
@@ -214,11 +227,37 @@ export class BatchProcessor {
           savedState.completed_results &&
           savedState.failed_results
         ) {
-          // Restore the state
+          // Get current date for directory structure
+          const now = new Date();
+          
+          // Update pending tasks with fresh date information
+          savedState.pending_tasks = savedState.pending_tasks.map(task => {
+            // If using date directory structure, update the directory path
+            if (task.output.directory.includes('/')) {
+              const parts = task.output.directory.split('/');
+              // If we have at least 3 parts (year/month/day)
+              if (parts.length >= 4) {
+                // Replace the date parts with current date
+                const year = now.getFullYear().toString();
+                const month = (now.getMonth() + 1).toString().padStart(2, '0');
+                const day = now.getDate().toString().padStart(2, '0');
+                
+                // Update the directory path with current date
+                parts[parts.length - 4] = year;
+                parts[parts.length - 3] = month;
+                parts[parts.length - 2] = day;
+                
+                task.output.directory = parts.join('/');
+              }
+            }
+            return task;
+          });
+          
+          // Restore the state with updated tasks
           this.progressState = {
             ...savedState,
             // Ensure dates are Date objects
-            start_time: new Date(savedState.start_time),
+            start_time: now, // Use current time as start time
             estimated_completion_time: savedState.estimated_completion_time 
               ? new Date(savedState.estimated_completion_time) 
               : undefined,
@@ -265,5 +304,13 @@ export class BatchProcessor {
     
     // Calculate estimated completion time
     return new Date(Date.now() + remainingMs);
+  }
+  
+  /**
+   * Gets the total number of images to be generated
+   * @returns Total number of images
+   */
+  getTotalImages(): number {
+    return this.progressState.total_images;
   }
 } 

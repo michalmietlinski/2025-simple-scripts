@@ -8,8 +8,8 @@
     "response_format": "url",
     "n": 3,
     "batch": {
-      "concurrency": 2,
-      "rate_limit_rpm": 10,
+      "concurrency": 1,
+      "rate_limit_rpm": 5,
       "retries": {
         "attempts": 3,
         "initial_delay_ms": 1000,
@@ -40,11 +40,11 @@
       "variables": {
         "icon_name": [
           "car",
-		  "bicycle",
-		  "tree"
+          "bicycle",
+          "tree"
         ]
       },
-      "filename_template": "{icon_name}__{timestamp}_{index}"
+      "filename_template": "{icon_name}_{timestamp}_{index}"
     }
   ]
 }

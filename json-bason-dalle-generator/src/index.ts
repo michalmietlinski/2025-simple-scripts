@@ -36,7 +36,8 @@ program
   .option('-o, --output-dir <path>', 'Output directory (overrides config file)')
   .option('-d, --dry-run', 'Estimate cost without generating images', false)
   .option('-y, --yes', 'Skip confirmation prompts', false)
-  .option('-v, --verbose', 'Enable verbose logging', false);
+  .option('-v, --verbose', 'Enable verbose logging', false)
+  .option('-f, --fresh', 'Force a fresh start without using saved state', false);
 
 // Register all commands
 registerCommands(program);
@@ -165,22 +166,36 @@ async function generateImages(options: any) {
     const batchProcessor = new BatchProcessor(
       tasks,
       providers[config.defaults.model],
-      config.defaults.batch
+      config.defaults.batch,
+      options.fresh ? undefined : path.join(process.cwd(), '.batch-state.json')
     );
     
+    // If fresh start, delete the existing batch state file
+    if (options.fresh) {
+      try {
+        const statePath = path.join(process.cwd(), '.batch-state.json');
+        if (await fs.pathExists(statePath)) {
+          await fs.unlink(statePath);
+          console.log(chalk.green('Starting fresh: deleted existing batch state'));
+        }
+      } catch (error) {
+        console.warn(chalk.yellow('Failed to delete batch state file:', error));
+      }
+    }
+    
     // Process the batch
-    spinner = ora(`Generating ${tasks.length} images`).start();
+    spinner = ora(`Generating ${tasks.length} tasks (${batchProcessor.getTotalImages()} images)`).start();
     
     // Track progress
     let lastProgress = 0;
     
     const results = await batchProcessor.process(state => {
-      // Calculate progress percentage
-      const progress = Math.floor((state.completed_tasks / state.total_tasks) * 100);
+      // Calculate progress percentage based on images, not tasks
+      const progress = Math.floor((state.completed_images / state.total_images) * 100);
       
       // Only update if progress has changed
       if (progress !== lastProgress) {
-        spinner!.text = `Generating images: ${progress}% (${state.completed_tasks}/${state.total_tasks})`;
+        spinner!.text = `Generating images: ${progress}% (${state.completed_images}/${state.total_images})`;
         lastProgress = progress;
       }
     });
@@ -189,17 +204,24 @@ async function generateImages(options: any) {
     const successes = results.filter(result => result.success).length;
     const failures = results.filter(result => !result.success).length;
     
+    // Count total images generated
+    const totalImagesGenerated = results
+      .filter(result => result.success)
+      .reduce((sum, result) => sum + (result.image_paths?.length || (result.image_path ? 1 : 0)), 0);
+    
     if (failures === 0) {
-      spinner.succeed(`Generated ${successes} images successfully`);
+      spinner.succeed(`Generated ${totalImagesGenerated} images successfully`);
     } else {
-      spinner.warn(`Generated ${successes} images, ${failures} failed`);
+      spinner.warn(`Generated ${totalImagesGenerated} images, ${failures} tasks failed`);
     }
     
     // Print summary
     console.log('\nGeneration Summary:');
     console.log(`- Total tasks: ${tasks.length}`);
-    console.log(`- Successful: ${successes}`);
-    console.log(`- Failed: ${failures}`);
+    console.log(`- Total images: ${batchProcessor.getTotalImages()}`);
+    console.log(`- Images generated: ${totalImagesGenerated}`);
+    console.log(`- Successful tasks: ${successes}`);
+    console.log(`- Failed tasks: ${failures}`);
     console.log(`- Output directory: ${outputDir}`);
     
     // Print failures if any

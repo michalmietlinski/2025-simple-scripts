@@ -19,7 +19,7 @@ class VariableInputDialog(tk.Toplevel):
         template_text: str,
         variables: List[str],
         db_manager: Any,
-        on_submit: Callable[[List[str]], None],  # Changed to accept list of processed texts
+        on_submit: Callable[[List[str]], None],
         error_handler: Any = None
     ):
         """Initialize variable input dialog.
@@ -44,21 +44,21 @@ class VariableInputDialog(tk.Toplevel):
         
         # Configure window
         self.title("Template Variables")
-        self.geometry("600x500")  # Increased size
-        self.minsize(500, 400)  # Increased minimum size
+        self.geometry("600x550")  # Increased height for status bar
+        self.minsize(500, 450)  # Increased minimum height
         self.transient(parent)
         self.grab_set()
         
         # Center on parent
         self.geometry("+%d+%d" % (
             parent.winfo_rootx() + parent.winfo_width()//2 - 300,
-            parent.winfo_rooty() + parent.winfo_height()//2 - 250
+            parent.winfo_rooty() + parent.winfo_height()//2 - 275
         ))
         
         # Initialize variables
         self.variable_values = {}
         self.variable_data = {}
-        self.selected_values = {}  # Store selected values for each variable
+        self.status_var = tk.StringVar(value="Ready")
         
         self._create_ui()
         self._load_variable_data()
@@ -66,17 +66,26 @@ class VariableInputDialog(tk.Toplevel):
     
     def _create_ui(self):
         """Create dialog UI components."""
-        # Main container with proper structure
+        # Main container
         main_frame = ttk.Frame(self)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Content frame for everything except buttons
-        content_frame = ttk.Frame(main_frame)
-        content_frame.pack(fill="both", expand=True)
+        # Status bar - pack FIRST
+        status_frame = ttk.Frame(main_frame)
+        status_frame.pack(side="bottom", fill="x")
         
-        # Bottom section for options and buttons - pack this FIRST
+        ttk.Separator(status_frame, orient="horizontal").pack(fill="x", pady=5)
+        
+        self.status_label = ttk.Label(
+            status_frame,
+            textvariable=self.status_var,
+            font=("Arial", 9)
+        )
+        self.status_label.pack(side="left")
+        
+        # Bottom frame for buttons - pack SECOND
         bottom_frame = ttk.Frame(main_frame)
-        bottom_frame.pack(side="bottom", fill="x", pady=(10, 0))
+        bottom_frame.pack(side="bottom", fill="x", pady=(0, 5))
         
         # Random values option
         random_frame = ttk.Frame(bottom_frame)
@@ -125,8 +134,12 @@ class VariableInputDialog(tk.Toplevel):
             text="Generate All",
             command=self._process_template_combinations
         ).pack(side="right", padx=5)
+
+        # Content frame - pack LAST
+        content_frame = ttk.Frame(main_frame)
+        content_frame.pack(fill="both", expand=True)
         
-        # Top section for template preview
+        # Template preview
         preview_frame = ttk.LabelFrame(
             content_frame,
             text="Template Preview",
@@ -144,22 +157,16 @@ class VariableInputDialog(tk.Toplevel):
         preview_text.insert("1.0", self.template_text)
         preview_text.config(state="disabled")
         
-        # Variables section header
-        ttk.Label(
-            content_frame,
-            text="Variable Values",
-            font=("Arial", 10, "bold")
-        ).pack(anchor="w", pady=(0, 5))
-        
-        # Variables section with fixed height
+        # Variables section
         variables_frame = ttk.LabelFrame(
             content_frame,
+            text="Variable Values",
             padding="5"
         )
-        variables_frame.pack(fill="both")
+        variables_frame.pack(fill="both", expand=True)
         
-        # Create scrollable canvas for variables
-        canvas = tk.Canvas(variables_frame, height=250)  # Fixed height
+        # Create scrollable frame for variables
+        canvas = tk.Canvas(variables_frame, height=200)  # Reduced height
         scrollbar = ttk.Scrollbar(variables_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
         
@@ -168,17 +175,12 @@ class VariableInputDialog(tk.Toplevel):
             lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
         
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=canvas.winfo_width())
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
         # Pack canvas and scrollbar
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        
-        # Bind canvas resize to update scrollable frame width
-        def _on_canvas_configure(e):
-            canvas.itemconfig(canvas.find_withtag("all")[0], width=e.width)
-        canvas.bind("<Configure>", _on_canvas_configure)
         
         # Create variable entries
         for var_name in self.variables:
@@ -280,6 +282,8 @@ class VariableInputDialog(tk.Toplevel):
     def _load_variable_data(self):
         """Load variable data from database."""
         try:
+            self.status_var.set("Loading variable values...")
+            
             # Get all variables
             variables = self.db_manager.get_template_variables()
             
@@ -299,19 +303,21 @@ class VariableInputDialog(tk.Toplevel):
                     for value in self.variable_data[var_name].values:
                         listbox.insert(tk.END, value)
             
+            self.status_var.set("Ready")
             logger.debug("Variable data loaded")
             
         except Exception as e:
-            logger.error(f"Failed to load variable data: {str(e)}")
-            messagebox.showerror(
-                "Error",
-                f"Failed to load variable data: {str(e)}"
-            )
+            error_msg = f"Failed to load variable data: {str(e)}"
+            self.status_var.set(error_msg)
+            logger.error(error_msg)
+            messagebox.showerror("Error", error_msg)
     
     @handle_errors()
     def _process_template_selected(self):
         """Process template with selected variable values."""
         try:
+            self.status_var.set("Processing selected combinations...")
+            
             # Get selected values for each variable
             values_combinations = []
             for var_name in self.variables:
@@ -340,7 +346,11 @@ class VariableInputDialog(tk.Toplevel):
             from ...utils.template_utils import TemplateProcessor
             processor = TemplateProcessor(self.db_manager)
             
-            for values in all_combinations:
+            total_combinations = len(all_combinations)
+            for i, values in enumerate(all_combinations, 1):
+                self.status_var.set(f"Processing combination {i}/{total_combinations}...")
+                self.update()  # Force UI update
+                
                 processed_text = processor.substitute_variables(
                     self.template_text,
                     values,
@@ -349,20 +359,22 @@ class VariableInputDialog(tk.Toplevel):
                 processed_texts.append(processed_text)
             
             # Call callback with all processed texts
+            self.status_var.set("Generating images...")
             self.on_submit(processed_texts)
             self.destroy()
             
         except Exception as e:
-            logger.error(f"Failed to process template: {str(e)}")
-            messagebox.showerror(
-                "Error",
-                "Failed to process template."
-            )
+            error_msg = f"Failed to process template: {str(e)}"
+            self.status_var.set(error_msg)
+            logger.error(error_msg)
+            messagebox.showerror("Error", error_msg)
     
     @handle_errors()
     def _process_template_combinations(self):
         """Process template with all possible combinations."""
         try:
+            self.status_var.set("Processing all combinations...")
+            
             from ...utils.template_utils import TemplateProcessor
             processor = TemplateProcessor(self.db_manager)
             
@@ -374,7 +386,11 @@ class VariableInputDialog(tk.Toplevel):
             
             # Process each combination
             processed_texts = []
-            for values in combinations:
+            total_combinations = len(combinations)
+            for i, values in enumerate(combinations, 1):
+                self.status_var.set(f"Processing combination {i}/{total_combinations}...")
+                self.update()  # Force UI update
+                
                 processed_text = processor.substitute_variables(
                     self.template_text,
                     values,
@@ -383,15 +399,15 @@ class VariableInputDialog(tk.Toplevel):
                 processed_texts.append(processed_text)
             
             # Call callback with all processed texts
+            self.status_var.set("Generating images...")
             self.on_submit(processed_texts)
             self.destroy()
             
         except Exception as e:
-            logger.error(f"Failed to process template combinations: {str(e)}")
-            messagebox.showerror(
-                "Error",
-                "Failed to process template combinations."
-            )
+            error_msg = f"Failed to process template combinations: {str(e)}"
+            self.status_var.set(error_msg)
+            logger.error(error_msg)
+            messagebox.showerror("Error", error_msg)
     
     def _show_variable_manager(self):
         """Show the variable management dialog."""

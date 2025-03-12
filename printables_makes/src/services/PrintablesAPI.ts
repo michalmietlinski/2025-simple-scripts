@@ -165,8 +165,9 @@ export class PrintablesScraper {
               fileElements = Array.from(fileLinks).map(link => {
                 // Create a div to represent a file item
                 const div = document.createElement('div');
-                const filename = link.textContent || 
-                                (link.getAttribute('href') ? link.getAttribute('href') : 'unknown.stl');
+                const linkText = link.textContent || '';
+                const hrefAttr = link.getAttribute('href');
+                const filename = linkText || (hrefAttr ? hrefAttr : 'unknown.stl');
                 div.setAttribute('data-filename', filename);
                 return div;
               });
@@ -193,8 +194,11 @@ export class PrintablesScraper {
             }
             
             // If we still don't have a name, check if the item itself has a data-filename attribute
-            if (name === 'unknown.stl' && item.getAttribute('data-filename')) {
-              name = item.getAttribute('data-filename');
+            if (name === 'unknown.stl') {
+              const dataFilename = item.getAttribute('data-filename');
+              if (dataFilename) {
+                name = dataFilename;
+              }
             }
             
             // Try different selectors for file size with fallbacks
@@ -237,6 +241,9 @@ export class PrintablesScraper {
   }
 
   async downloadFiles(url: string, destinationPath: string): Promise<string[]> {
+    console.log(`Starting download process for ${url}`);
+    console.log(`Files will be saved to: ${destinationPath}`);
+    
     try {
       // Initialize browser if needed
       await this.initBrowser();
@@ -250,13 +257,23 @@ export class PrintablesScraper {
         throw new Error('Download limit reached. Try again later.');
       }
 
-      // Create a new page
+      // Create a new page with download permissions
       const page = await this.context.newPage();
+      
+      // Enable more verbose logging
+      page.on('console', msg => console.log(`PAGE LOG: ${msg.text()}`));
       
       try {
         // Navigate to the URL
-        await page.goto(url, { timeout: CONFIG.printablesApi.timeout });
+        console.log(`Navigating to ${url}`);
+        await page.goto(url, { timeout: CONFIG.printablesApi.timeout, waitUntil: 'networkidle' });
         await this.humanLikeDelay('pageLoad');
+        
+        // Take a screenshot for debugging
+        const screenshotPath = path.join(destinationPath, 'page_screenshot.png');
+        console.log(`Taking screenshot and saving to: ${screenshotPath}`);
+        await page.screenshot({ path: screenshotPath });
+        console.log(`Saved screenshot to ${screenshotPath}`);
         
         // Set up download handler
         const downloadedFiles: string[] = [];
@@ -266,168 +283,165 @@ export class PrintablesScraper {
           const fileName = download.suggestedFilename();
           const filePath = path.join(destinationPath, fileName);
           
-          await download.saveAs(filePath);
-          await this.downloadManager.trackDownload();
+          console.log(`Download started: ${fileName}`);
+          console.log(`Saving to: ${filePath}`);
           
-          downloadedFiles.push(fileName);
-          console.log(`Downloaded: ${fileName}`);
+          try {
+            await fs.ensureDir(destinationPath);
+            console.log(`Ensured directory exists: ${destinationPath}`);
+            await download.saveAs(filePath);
+            console.log(`File saved successfully: ${filePath}`);
+            await this.downloadManager.trackDownload();
+            
+            downloadedFiles.push(fileName);
+            console.log(`Added to downloaded files list: ${fileName}`);
+          } catch (error) {
+            console.error(`Error saving download ${fileName}:`, error);
+          }
         });
 
-        // Try multiple download strategies
+        // Printables-specific strategy: Check for the new UI with download buttons
+        console.log("Checking for Printables-specific download buttons...");
         
-        // Strategy 1: Look for download buttons in the Files tab
-        console.log("Trying to find download buttons in the Files tab...");
-        
-        // First, try to click on the Files tab if it exists
+        // First, try to click on the Files tab if it exists (new UI)
         try {
-          const filesTabSelector = 'a[href="#files"], button:has-text("Files"), .nav-item:has-text("Files")';
-          const filesTab = await page.$(filesTabSelector);
-          if (filesTab) {
-            await filesTab.click();
-            await this.humanLikeDelay('interaction');
-            console.log("Clicked on Files tab");
+          // Look for the Files tab in the new UI
+          const filesTabSelectors = [
+            'a[href="#files"]', 
+            'button:has-text("Files")', 
+            '.nav-item:has-text("Files")',
+            'div[role="tab"]:has-text("Files")',
+            'li:has-text("Files")'
+          ];
+          
+          for (const selector of filesTabSelectors) {
+            const filesTab = await page.$(selector);
+            if (filesTab) {
+              console.log(`Found Files tab with selector: ${selector}`);
+              await filesTab.click();
+              await this.humanLikeDelay('interaction');
+              console.log("Clicked on Files tab");
+              break;
+            }
           }
         } catch (error) {
           console.warn("Could not find or click Files tab:", error);
         }
         
-        // Find and click download buttons
-        const downloadButtonSelectors = [
-          '.download-button', 
-          '.file-download-button', 
-          'a[download]',
-          'button:has-text("Download")',
-          'a:has-text("Download")',
-          '.file-item button',
-          '.file-row button'
+        // Wait for any dynamic content to load
+        await page.waitForTimeout(2000);
+        
+        // Try to find the download all button first (most efficient)
+        const downloadAllSelectors = [
+          'button:has-text("Download All")',
+          'a:has-text("Download All")',
+          '.download-all-button'
         ];
         
-        const downloadButtons = await page.$$(downloadButtonSelectors.join(', '));
-        console.log(`Found ${downloadButtons.length} download buttons`);
-        
-        for (const button of downloadButtons) {
-          // Wait for rate limiting between downloads
-          await this.rateLimiter.waitForNextRequest();
-          await this.humanLikeDelay('download');
-          
+        let downloadAllClicked = false;
+        for (const selector of downloadAllSelectors) {
           try {
-            // Click the download button
-            await button.click();
-            console.log("Clicked download button");
-            
-            // Wait for download to start
-            await page.waitForTimeout(3000);
+            const downloadAllButton = await page.$(selector);
+            if (downloadAllButton) {
+              console.log(`Found Download All button with selector: ${selector}`);
+              await downloadAllButton.click();
+              console.log("Clicked Download All button");
+              await page.waitForTimeout(5000); // Wait longer for the zip to start downloading
+              downloadAllClicked = true;
+              break;
+            }
           } catch (error) {
-            console.warn(`Failed to click download button: ${error}`);
+            console.warn(`Failed to click Download All button with selector ${selector}:`, error);
           }
         }
         
-        // Strategy 2: If no download buttons found or no files downloaded, try to find download links
-        if (downloadButtons.length === 0 || downloadedFiles.length === 0) {
-          console.log("Trying to find download links...");
-          
-          const downloadLinkSelectors = [
-            'a[href*=".stl"]', 
-            'a[href*=".3mf"]', 
-            'a[href*=".obj"]',
-            'a[href*="/download/"]'
+        // If we didn't click Download All, try individual file downloads
+        if (!downloadAllClicked) {
+          // Find and click download buttons for individual files
+          const downloadButtonSelectors = [
+            '.download-button', 
+            '.file-download-button', 
+            'a[download]',
+            'button:has-text("Download")',
+            'a:has-text("Download")',
+            '.file-item button',
+            '.file-row button',
+            'button.btn-primary',
+            'a.btn-primary'
           ];
           
-          const downloadLinks = await page.$$eval(downloadLinkSelectors.join(', '), 
-            links => links.map(link => ({
-              url: link.getAttribute('href') || '',
-              filename: link.getAttribute('download') || link.textContent || 'unknown.stl'
-            }))
-          );
+          // Get all download buttons
+          const downloadButtons = await page.$$(downloadButtonSelectors.join(', '));
+          console.log(`Found ${downloadButtons.length} download buttons`);
           
-          console.log(`Found ${downloadLinks.length} download links`);
-          
-          for (const link of downloadLinks) {
-            // Only download supported file types or links with /download/ in the URL
-            const ext = path.extname(link.filename).toLowerCase();
-            const isDownloadLink = link.url.includes('/download/');
-            
-            if (!CONFIG.supportedFileTypes.includes(ext) && !isDownloadLink) {
-              continue;
-            }
-            
-            // Wait for rate limiting
+          for (const button of downloadButtons) {
+            // Wait for rate limiting between downloads
             await this.rateLimiter.waitForNextRequest();
             await this.humanLikeDelay('download');
             
             try {
-              // For relative URLs, make them absolute
-              const absoluteUrl = link.url.startsWith('/')
-                ? `${CONFIG.printablesApi.baseUrl}${link.url}`
-                : link.url;
+              // Get button text for debugging
+              const buttonText = await button.evaluate(el => el.textContent);
+              console.log(`Attempting to click button: ${buttonText}`);
               
-              console.log(`Trying to download from URL: ${absoluteUrl}`);
+              // Click the download button
+              await button.click();
+              console.log("Clicked download button");
               
-              // Navigate to download URL
-              await page.goto(absoluteUrl, { timeout: CONFIG.printablesApi.timeout });
-              
-              // The download should trigger automatically
-              await page.waitForTimeout(5000);
-              
-              // If no download triggered, try to find and click a download button on this page
-              if (downloadedFiles.length === 0) {
-                const directDownloadButtons = await page.$$('button:has-text("Download"), a:has-text("Download")');
-                for (const button of directDownloadButtons) {
-                  try {
-                    await button.click();
-                    await page.waitForTimeout(3000);
-                  } catch (error) {
-                    console.warn(`Failed to click direct download button: ${error}`);
-                  }
-                }
-              }
+              // Wait for download to start
+              await page.waitForTimeout(3000);
             } catch (error) {
-              console.warn(`Failed to download file ${link.filename}: ${error}`);
+              console.warn(`Failed to click download button: ${error}`);
             }
           }
         }
         
-        // Strategy 3: If still no files downloaded, try to find file table rows and click on them
+        // If no files downloaded yet, try to find download links
         if (downloadedFiles.length === 0) {
-          console.log("Trying to find file table rows...");
+          console.log("Trying to find download links...");
           
-          const fileRowSelectors = [
-            '.file-item', 
-            '.file-row', 
-            'tr:has(.file-name)',
-            '.files-table tr'
-          ];
+          // Get all links on the page
+          const allLinks = await page.$$eval('a', links => 
+            links.map(link => ({
+              url: link.href,
+              text: link.textContent?.trim() || '',
+              download: link.hasAttribute('download'),
+              classes: link.className
+            }))
+          );
           
-          const fileRows = await page.$$(fileRowSelectors.join(', '));
-          console.log(`Found ${fileRows.length} file rows`);
+          console.log(`Found ${allLinks.length} links on the page`);
+          console.log("Link samples:", allLinks.slice(0, 5));
           
-          for (const row of fileRows) {
-            await this.rateLimiter.waitForNextRequest();
-            await this.humanLikeDelay('interaction');
-            
+          // Filter for potential download links
+          const potentialDownloadLinks = allLinks.filter(link => 
+            link.download || 
+            link.url.includes('.stl') || 
+            link.url.includes('.3mf') || 
+            link.url.includes('.obj') ||
+            link.url.includes('/download/') ||
+            link.text.includes('Download')
+          );
+          
+          console.log(`Found ${potentialDownloadLinks.length} potential download links`);
+          
+          // Try to click each potential download link
+          for (const linkInfo of potentialDownloadLinks) {
             try {
-              // Try to find a download button within this row
-              const rowButton = await row.$('button, a[href*="download"], a[download]');
-              if (rowButton) {
-                await rowButton.click();
-                console.log("Clicked row download button");
-                await page.waitForTimeout(3000);
-              } else {
-                // If no button found, try clicking the row itself
-                await row.click();
-                console.log("Clicked file row");
-                await page.waitForTimeout(1000);
+              console.log(`Trying to click link: ${linkInfo.text} (${linkInfo.url})`);
+              
+              // Find the link on the page
+              const link = await page.$(`a[href="${linkInfo.url}"]`);
+              if (link) {
+                await this.rateLimiter.waitForNextRequest();
+                await this.humanLikeDelay('download');
                 
-                // After clicking the row, look for a download button that might have appeared
-                const popupButton = await page.$('button:has-text("Download"), a:has-text("Download")');
-                if (popupButton) {
-                  await popupButton.click();
-                  console.log("Clicked popup download button");
-                  await page.waitForTimeout(3000);
-                }
+                await link.click();
+                console.log(`Clicked link: ${linkInfo.text}`);
+                await page.waitForTimeout(3000);
               }
             } catch (error) {
-              console.warn(`Failed to interact with file row: ${error}`);
+              console.warn(`Failed to click link: ${linkInfo.text}`, error);
             }
           }
         }
@@ -435,6 +449,12 @@ export class PrintablesScraper {
         // If we still have no files, create a dummy file with information
         if (downloadedFiles.length === 0) {
           console.log("No files could be downloaded automatically. Creating info file.");
+          
+          // Save the page HTML for debugging
+          const html = await page.content();
+          const htmlPath = path.join(destinationPath, 'page_content.html');
+          await fs.writeFile(htmlPath, html);
+          console.log(`Saved page HTML to ${htmlPath}`);
           
           const infoFileName = "download_info.txt";
           const infoFilePath = path.join(destinationPath, infoFileName);
@@ -451,6 +471,8 @@ Date: ${new Date().toISOString()}
 
 Note: Files could not be downloaded automatically.
 Please visit the URL above to download the files manually.
+
+The page screenshot and HTML content have been saved for debugging.
           `.trim();
           
           await fs.writeFile(infoFilePath, infoContent);

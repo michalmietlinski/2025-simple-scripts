@@ -92,9 +92,23 @@ export class StorageService {
   }
 
   async createProjectDirectory(projectId: string): Promise<string> {
+    console.log(`Creating project directory for project ID: ${projectId}`);
     const projectDir = path.join(CONFIG.dataPath, 'files', projectId);
-    fs.ensureDirSync(projectDir);
-    return projectDir;
+    console.log(`Project directory path: ${projectDir}`);
+    
+    try {
+      await fs.ensureDir(projectDir);
+      console.log(`Successfully created project directory: ${projectDir}`);
+      
+      // Verify the directory exists
+      const exists = await fs.pathExists(projectDir);
+      console.log(`Directory exists check: ${exists}`);
+      
+      return projectDir;
+    } catch (error) {
+      console.error(`Error creating project directory: ${error}`);
+      throw new Error(`Failed to create project directory: ${error}`);
+    }
   }
 
   async createPrintJobPhotoDirectories(jobId: string): Promise<{ overview: string; files: string }> {

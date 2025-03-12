@@ -1,0 +1,121 @@
+#!/usr/bin/env node
+
+import { Command } from 'commander';
+import { ProjectCommands } from './cli/commands/project';
+import { JobCommands } from './cli/commands/job';
+import { PhotoCommands } from './cli/commands/photo';
+
+// Create the main program
+const program = new Command();
+
+// Set up program metadata
+program
+  .name('printables-tracker')
+  .description('A tool to track and manage 3D printing projects from Printables.com')
+  .version('0.1.0');
+
+// Initialize command handlers
+const projectCommands = new ProjectCommands();
+const jobCommands = new JobCommands();
+const photoCommands = new PhotoCommands();
+
+// Project commands
+const projectCommand = program.command('project')
+  .description('Manage projects');
+
+projectCommand
+  .command('add <url>')
+  .description('Add a new project from Printables URL')
+  .action(projectCommands.add.bind(projectCommands));
+
+projectCommand
+  .command('list')
+  .description('List all projects')
+  .action(projectCommands.list.bind(projectCommands));
+
+projectCommand
+  .command('status <project_id>')
+  .description('Show project status and details')
+  .action(projectCommands.status.bind(projectCommands));
+
+projectCommand
+  .command('done <project_id>')
+  .description('Mark project as uploaded to Printables')
+  .action(projectCommands.markDone.bind(projectCommands));
+
+// Print job commands
+const jobCommand = program.command('job')
+  .description('Manage print jobs');
+
+jobCommand
+  .command('create <name>')
+  .description('Create a new print job')
+  .action(jobCommands.create.bind(jobCommands));
+
+jobCommand
+  .command('add-files <job_id>')
+  .description('Add files to a print job')
+  .option('-p, --project <project_id>', 'Project ID')
+  .option('-f, --files <files...>', 'File names')
+  .action((jobId, options) => {
+    jobCommands.addFiles(jobId, options.project, options.files);
+  });
+
+jobCommand
+  .command('status <job_id>')
+  .description('Show job status and included files')
+  .action(jobCommands.status.bind(jobCommands));
+
+jobCommand
+  .command('start <job_id>')
+  .description('Mark job as in progress')
+  .action((jobId) => {
+    jobCommands.updateStatus(jobId, 'in_progress');
+  });
+
+jobCommand
+  .command('complete <job_id>')
+  .description('Mark job as completed')
+  .action((jobId) => {
+    jobCommands.updateStatus(jobId, 'completed');
+  });
+
+jobCommand
+  .command('partial <job_id>')
+  .description('Mark job as partially successful')
+  .option('-f, --files <files...>', 'Successfully printed files (format: projectId/fileName)')
+  .action((jobId, options) => {
+    jobCommands.markPartialSuccess(jobId, options.files);
+  });
+
+// Photo commands
+const photoCommand = program.command('photos')
+  .description('Manage photos');
+
+photoCommand
+  .command('add <job_id>')
+  .description('Add photos to a job')
+  .option('-f, --file <project/file>', 'File to associate photo with (format: projectId/fileName)')
+  .option('-o, --overview', 'Add as overview photo')
+  .argument('<photo_path>', 'Path to the photo file')
+  .action((jobId, photoPath, options) => {
+    photoCommands.add(jobId, {
+      jobId,
+      file: options.file,
+      overview: options.overview,
+      photoPath,
+    });
+  });
+
+photoCommand
+  .command('list <job_id>')
+  .description('List all photos in a job')
+  .action(photoCommands.list.bind(photoCommands));
+
+// Parse command line arguments
+program.parse(process.argv);
+
+// If no arguments provided, show help
+if (process.argv.length <= 2) {
+  program.help();
+} 

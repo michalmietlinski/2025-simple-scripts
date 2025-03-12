@@ -1,0 +1,39 @@
+{
+  "name": "printables-tracker",
+  "version": "0.1.0",
+  "description": "A tool to track and manage 3D printing projects from Printables.com",
+  "main": "dist/index.js",
+  "bin": {
+    "printables-tracker": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "3d-printing",
+    "printables",
+    "cli",
+    "tracker"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^8.2.6",
+    "@types/node": "^20.11.19",
+    "@types/uuid": "^9.0.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^12.0.0",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^8.2.6",
+    "playwright": "^1.41.2",
+    "uuid": "^9.0.1"
+  }
+}

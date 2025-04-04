@@ -1,0 +1,14 @@
+{
+  "name": "png-to-vector",
+  "version": "1.0.0",
+  "description": "A tool to convert PNG images to SVG vector format",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "potrace": "^2.1.8",
+    "jimp": "^0.22.10",
+    "fs-extra": "^11.1.1"
+  }
+} 

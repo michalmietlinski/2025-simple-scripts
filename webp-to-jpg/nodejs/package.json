@@ -4,9 +4,9 @@
   "description": "Convert WebP images to JPG format",
   "main": "convert.js",
   "dependencies": {
-    "sharp": "^0.33.2"
+    "sharp": "^0.33.5"
   },
   "scripts": {
     "start": "node convert.js"
   }
-} 
+}
